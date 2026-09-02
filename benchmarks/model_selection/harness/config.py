@@ -4,9 +4,21 @@ import copy
 
 BASE_DIR = Path("benchmarks/model_selection")
 
+
+def validate_config_budget(config):
+    required = ["global_budget_inr", "per_call_hard_cap_inr", "smoke_test_global_cap_inr"]
+    for req in required:
+        if req not in config:
+            raise ValueError(f"Missing required config field: {req}")
+        if not isinstance(config[req], (int, float)):
+            raise ValueError(f"Invalid type for {req}")
+
 def load_config():
     with open(BASE_DIR / "benchmark_config.example.json") as f:
-        return json.load(f)
+        cfg = json.load(f)
+    validate_config_budget(cfg)
+    return cfg
+
 
 def load_schemas():
     with open(BASE_DIR / "schemas/verification_result.schema.json") as f:

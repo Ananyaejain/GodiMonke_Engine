@@ -22,7 +22,11 @@ def extract_numbers(text):
 def extract_quotes(text):
     if not isinstance(text, str):
         text = str(text)
-    return set(re.findall(r'"([^"]*)"', text)) | set(re.findall(r"'([^']*)'", text))
+    # Match double quotes, curly double quotes, and single quotes only if wrapped by non-word boundaries
+    quotes = set(re.findall(r'"([^"]*)"', text))
+    quotes |= set(re.findall(r'“([^”]*)”', text))
+    quotes |= set(re.findall(r"(?<!\w)'([^']+)'(?!\w)", text))
+    return quotes
 
 def extract_dates(text):
     if not isinstance(text, str):
@@ -78,15 +82,9 @@ def get_allowed_facts(sanitized_fixture):
 
     return allowed_nums, allowed_dates, allowed_quotes, valid_source_roles, allowed_claim_ids
 
-def get_sanitized_for_extractor(fixture):
-    # Ensure gold is not in the object we pass to get_allowed_facts
-    sanitized = {k: v for k, v in fixture.items() if k not in ["gold", "prohibited_claims", "human_gold_status"]}
-    return sanitized
 
-def score_verification(output, fixture, schema_valid):
-    gold = fixture.get("gold", {})
-    sanitized = get_sanitized_for_extractor(fixture)
-    allowed_nums, allowed_dates, allowed_quotes, valid_source_roles, _ = get_allowed_facts(sanitized)
+def score_verification(output, visible_fixture, gold, schema_valid):
+    allowed_nums, allowed_dates, allowed_quotes, valid_source_roles, _ = get_allowed_facts(visible_fixture)
 
     components = {
         "verdict_correctness": 0,
@@ -115,7 +113,8 @@ def score_verification(output, fixture, schema_valid):
 
     certainty_flags = ["confirmed fact", "assured", "100% certain"]
     if any(cf in rationale.lower() for cf in certainty_flags):
-        components["critical_fail"] = True
+        if gold_verdict in ["PARTLY_SUPPORTED", "MIXED", "MISLEADING_WITHOUT_CONTEXT", "NOT_ESTABLISHED"]:
+            components["critical_fail"] = True
 
     output_nums = extract_numbers(rationale)
     output_dates = extract_dates(rationale)
@@ -134,18 +133,28 @@ def score_verification(output, fixture, schema_valid):
 
     ev_assmts = output.get("evidence_assessment", [])
     has_invalid_source = False
+
+    seen_sources = set()
+    has_duplicate = False
     has_wrong_role = False
+
     for ea in ev_assmts:
         sid = ea.get("source_id")
         assmt = ea.get("assessment")
+        if sid in seen_sources:
+            has_duplicate = True
+        seen_sources.add(sid)
+
         if sid not in valid_source_roles:
             components["critical_fail"] = True
             has_invalid_source = True
         elif valid_source_roles[sid] != assmt:
             has_wrong_role = True
 
+    missing_sources = set(valid_source_roles.keys()) - seen_sources
+
     if not has_invalid_source:
-        if not has_wrong_role and len(ev_assmts) == len(valid_source_roles):
+        if not has_wrong_role and not has_duplicate and not missing_sources:
             components["evidence_integrity"] = 15
 
     gold_caveats = gold.get("material_caveats", [])
@@ -180,10 +189,8 @@ def score_verification(output, fixture, schema_valid):
     components["deterministic_subtotal"] = sum(v for k, v in components.items() if isinstance(v, int) and not isinstance(v, bool))
     return components
 
-def score_copy(output, fixture, schema_valid):
-    gold = fixture.get("gold", {})
-    sanitized = get_sanitized_for_extractor(fixture)
-    allowed_nums, allowed_dates, allowed_quotes, _, allowed_claim_ids = get_allowed_facts(sanitized)
+def score_copy(output, visible_fixture, gold, schema_valid):
+    allowed_nums, allowed_dates, allowed_quotes, _, allowed_claim_ids = get_allowed_facts(visible_fixture)
 
     components = {
         "deterministic_factual_safety": 0,
@@ -241,7 +248,7 @@ def score_copy(output, fixture, schema_valid):
 
     components["deterministic_factual_safety"] = 20
 
-    req_format = fixture.get("copy_format", "GM-SINGLE-01")
+    req_format = visible_fixture.get("copy_format", "GM-SINGLE-01")
     if output.get("format") == req_format:
         n_slides = len(slides)
         if req_format in ["GM-SINGLE-01", "GM-COMPARE-01"]:

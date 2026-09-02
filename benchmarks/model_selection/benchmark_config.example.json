@@ -62,5 +62,7 @@
     }
   },
   "search_enabled": false,
-  "tools_enabled": false
+  "tools_enabled": false,
+  "per_call_hard_cap_inr": 5,
+  "smoke_test_global_cap_inr": 10
 }

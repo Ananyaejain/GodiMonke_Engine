@@ -7,7 +7,7 @@ from unittest.mock import patch
 from .runner import run_benchmark, BudgetExceeded, TokenLimitExceeded, BudgetAccountingError, generate_individual_run_id, build_request
 from .scorer import score_verification, score_copy, validate_schema, extract_numbers
 from .provider import FakeProvider
-from .config import load_fixtures, load_schemas
+from .config import load_fixtures, load_schemas, sanitize_fixture
 
 class TestBenchmarkHarness(unittest.TestCase):
     def setUp(self):
@@ -26,12 +26,12 @@ class TestBenchmarkHarness(unittest.TestCase):
 
     def test_03_arbitrary_number_rejected(self):
         output = {"verdict": "SUPPORTED", "rationale_summary": "value 8888.88", "material_caveats": self.valid_caveats}
-        res = score_verification(output, self.f_01, True)
+        res = score_verification(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertTrue(res["critical_fail"])
 
     def test_04_changed_number_rejected(self):
         output = {"verdict": "SUPPORTED", "rationale_summary": "value 13.22", "material_caveats": self.valid_caveats}
-        res = score_verification(output, self.f_01, True)
+        res = score_verification(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertTrue(res["critical_fail"])
 
     def test_05_numeric_formatting_accepted(self):
@@ -43,58 +43,58 @@ class TestBenchmarkHarness(unittest.TestCase):
 
     def test_06_invented_date_rejected(self):
         output = {"verdict": "SUPPORTED", "rationale_summary": "happened in 2099-01-01", "material_caveats": self.valid_caveats}
-        res = score_verification(output, self.f_01, True)
+        res = score_verification(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertTrue(res["critical_fail"])
 
     def test_07_invented_quote_rejected(self):
         output = {"verdict": "SUPPORTED", "rationale_summary": "They said 'This is fake'", "material_caveats": self.valid_caveats}
-        res = score_verification(output, self.f_01, True)
+        res = score_verification(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertTrue(res["critical_fail"])
 
     def test_08_unsupported_claim_id(self):
         output = {"format": "GM-SINGLE-01", "slides": [{"body_blocks": [{"kind": "FACT", "text": "12.22", "claim_ids": ["FAKE-CLAIM"]}]}]}
-        res = score_copy(output, self.f_01, True)
+        res = score_copy(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertTrue(res["critical_fail"])
 
     def test_09_unsupported_source_id(self):
         output = {"verdict": "SUPPORTED", "evidence_assessment": [{"source_id": "FAKE-SRC", "assessment": "SUPPORTS"}], "material_caveats": self.valid_caveats}
-        res = score_verification(output, self.f_01, True)
+        res = score_verification(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertTrue(res["critical_fail"])
 
     def test_10_missing_caveat_not_critical(self):
         output = {"verdict": "SUPPORTED", "material_caveats": [], "evidence_assessment": [{"source_id": "SRC-F01-A", "assessment": "SUPPORTS"}]}
-        res = score_verification(output, self.f_01, True)
+        res = score_verification(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertFalse(res["critical_fail"])
         self.assertEqual(res["caveat_retention"], 0)
 
     def test_11_unrelated_caveat_not_critical(self):
         output = {"verdict": "SUPPORTED", "material_caveats": ["This is a fake caveat"], "evidence_assessment": [{"source_id": "SRC-F01-A", "assessment": "SUPPORTS"}]}
-        res = score_verification(output, self.f_01, True)
+        res = score_verification(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertFalse(res["critical_fail"])
         self.assertEqual(res["caveat_retention"], 0)
 
     def test_12_uncertainty_promoted_is_critical(self):
         output = {"verdict": "SUPPORTED", "rationale_summary": "This is 100% certain and a confirmed fact.", "material_caveats": self.valid_caveats}
-        res = score_verification(output, self.f_01, True)
+        res = score_verification(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertTrue(res["critical_fail"])
 
     def test_13_wrong_role_loses_points(self):
         # SRC-F01-A should be SUPPORTS
         output = {"verdict": "SUPPORTED", "evidence_assessment": [{"source_id": "SRC-F01-A", "assessment": "CONTRADICTS"}], "material_caveats": self.valid_caveats}
-        res = score_verification(output, self.f_01, True)
+        res = score_verification(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertEqual(res["evidence_integrity"], 0)
         self.assertEqual(res["semantic_evidence_fidelity"], "NEEDS_HUMAN_SCORE")
 
     def test_14_semantic_scores_remain_human(self):
         output = {"format": "GM-SINGLE-01", "slides": [{"body_blocks": [{"kind": "FACT", "text": "12.22", "claim_ids": ["CLM-F01-1"]}]}]}
-        res = score_copy(output, self.f_01, True)
+        res = score_copy(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertEqual(res["semantic_factual_fidelity"], "NEEDS_HUMAN_SCORE")
         self.assertEqual(res["final_score"], "NEEDS_HUMAN_SCORE")
 
     def test_15_wrong_format_loses_template_points(self):
         # Format requested: GM-SINGLE-01, we provide GM-CAROUSEL-01
         output = {"format": "GM-CAROUSEL-01", "slides": [{"body_blocks": [{"kind": "FACT", "text": "12.22", "claim_ids": ["CLM-F01-1"]}]}]}
-        res = score_copy(output, self.f_01, True)
+        res = score_copy(output, sanitize_fixture(self.f_01), self.f_01.get("gold", {}), True)
         self.assertEqual(res["concision_template_fit"], 0)
 
     def test_16_carousel_slide_counts(self):
@@ -102,11 +102,11 @@ class TestBenchmarkHarness(unittest.TestCase):
         f_car["copy_format"] = "GM-CAROUSEL-01"
         # 1 slide -> 0 pts
         out1 = {"format": "GM-CAROUSEL-01", "slides": [{"body_blocks": [{"kind": "FACT", "text": "12.22", "claim_ids": ["CLM-F01-1"]}]}]}
-        res1 = score_copy(out1, f_car, True)
+        res1 = score_copy(out1, sanitize_fixture(f_car), f_car.get("gold", {}), True)
         self.assertEqual(res1["concision_template_fit"], 0)
         # 3 slides -> 10 pts
         out3 = {"format": "GM-CAROUSEL-01", "slides": [out1["slides"][0]] * 3}
-        res3 = score_copy(out3, f_car, True)
+        res3 = score_copy(out3, sanitize_fixture(f_car), f_car.get("gold", {}), True)
         self.assertEqual(res3["concision_template_fit"], 10)
 
     def test_17_post_call_accounting_discrepancy(self):
@@ -145,17 +145,18 @@ class TestBenchmarkHarness(unittest.TestCase):
             mock_exit.assert_not_called()
 
     def test_22_gold_leakage_isolation(self):
-        from .scorer import get_allowed_facts, get_sanitized_for_extractor
+        from .scorer import get_allowed_facts
+        from .config import sanitize_fixture
         f_leak = dict(self.f_01)
         f_leak["gold"] = dict(f_leak["gold"])
         f_leak["gold"]["material_caveats"] = ["This caveat contains hidden number 7777.77"]
 
-        sanitized = get_sanitized_for_extractor(f_leak)
+        sanitized = sanitize_fixture(f_leak)
         allowed_nums, _, _, _, _ = get_allowed_facts(sanitized)
         self.assertNotIn(7777.77, allowed_nums)
 
         output = {"verdict": "SUPPORTED", "rationale_summary": "I am leaking 7777.77", "material_caveats": []}
-        res = score_verification(output, f_leak, True)
+        res = score_verification(output, sanitize_fixture(f_leak), f_leak.get("gold", {}), True)
         self.assertTrue(res["critical_fail"])
 
     def test_23_provider_boundary_isolation(self):
@@ -192,3 +193,71 @@ class TestBenchmarkHarness(unittest.TestCase):
         normalized_artifact = {"run_id": "test", "output": res["output"]}
         assert_no_sentinel(raw_artifact)
         assert_no_sentinel(normalized_artifact)
+
+    def test_24_supported_confirmed(self):
+        f = dict(self.f_01)
+        f["gold"] = dict(f["gold"])
+        f["gold"]["verdict"] = "SUPPORTED"
+        output = {"verdict": "SUPPORTED", "rationale_summary": "confirmed fact", "material_caveats": [], "evidence_assessment": [{"source_id": "SRC-F01-A", "assessment": "SUPPORTS"}]}
+        res = score_verification(output, sanitize_fixture(f), f["gold"], True)
+        self.assertFalse(res["critical_fail"])
+
+    def test_25_misleading_certainty(self):
+        f = dict(self.f_01)
+        f["gold"] = dict(f["gold"])
+        f["gold"]["verdict"] = "MISLEADING_WITHOUT_CONTEXT"
+        output = {"verdict": "SUPPORTED", "rationale_summary": "100% certain", "material_caveats": [], "evidence_assessment": [{"source_id": "SRC-F01-A", "assessment": "SUPPORTS"}]}
+        res = score_verification(output, sanitize_fixture(f), f["gold"], True)
+        self.assertTrue(res["critical_fail"])
+
+    def test_26_apostrophe_not_quote(self):
+        from .scorer import extract_quotes
+        text = "India's economy and government's estimate say nothing's wrong."
+        self.assertEqual(extract_quotes(text), set())
+        text2 = "They said 'This is fake' and \"Double fake\""
+        self.assertEqual(extract_quotes(text2), {'This is fake', 'Double fake'})
+
+    def test_27_evidence_duplicate_source(self):
+        f = dict(self.f_01)
+        # f_01 expects SRC-F01-A with SUPPORTS
+        output = {"verdict": "SUPPORTED", "evidence_assessment": [{"source_id": "SRC-F01-A", "assessment": "SUPPORTS"}, {"source_id": "SRC-F01-A", "assessment": "SUPPORTS"}], "material_caveats": []}
+        res = score_verification(output, sanitize_fixture(f), f["gold"], True)
+        self.assertEqual(res["evidence_integrity"], 0)
+
+    def test_28_evidence_missing_source(self):
+        f = dict(self.f_01)
+        output = {"verdict": "SUPPORTED", "evidence_assessment": [], "material_caveats": []}
+        res = score_verification(output, sanitize_fixture(f), f["gold"], True)
+        self.assertEqual(res["evidence_integrity"], 0)
+
+    def test_29_evidence_exact_source_set(self):
+        f = dict(self.f_01)
+        output = {"verdict": "SUPPORTED", "evidence_assessment": [{"source_id": "SRC-F01-A", "assessment": "SUPPORTS"}, {"source_id": "SRC-F01-B", "assessment": "SUPPORTS"}], "material_caveats": []}
+        res = score_verification(output, sanitize_fixture(f), f["gold"], True)
+        self.assertEqual(res["evidence_integrity"], 15)
+
+    def test_30_config_budget_validation(self):
+        from .config import validate_config_budget
+        # Mocking or calling the validate function
+        valid_cfg = {"global_budget_inr": 200, "per_call_hard_cap_inr": 5, "smoke_test_global_cap_inr": 10}
+        validate_config_budget(valid_cfg)  # should not raise
+        invalid_cfg = {"global_budget_inr": 200}
+        with self.assertRaises(ValueError):
+            validate_config_budget(invalid_cfg)
+
+    def test_31_canonical_visible_fixture_boundary(self):
+        # We ensure scorer is blind to gold and receives exactly the sanitized fixture
+        import inspect
+        from .scorer import score_verification, score_copy
+        # Verify get_sanitized_for_extractor is completely removed
+        with self.assertRaises(ImportError):
+            from .scorer import get_sanitized_for_extractor
+
+        # Verify signatures require visible_fixture and gold separately
+        sig_v = inspect.signature(score_verification)
+        self.assertIn("visible_fixture", sig_v.parameters)
+        self.assertIn("gold", sig_v.parameters)
+
+        sig_c = inspect.signature(score_copy)
+        self.assertIn("visible_fixture", sig_c.parameters)
+        self.assertIn("gold", sig_c.parameters)

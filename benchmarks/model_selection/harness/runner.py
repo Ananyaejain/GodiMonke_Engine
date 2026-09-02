@@ -50,7 +50,7 @@ def process_call(provider, request, fixture_id, rep, budget, spent, config, fixt
     if est_in > request["max_input_tokens"]:
         raise TokenLimitExceeded(f"Estimated input tokens {est_in} > {request['max_input_tokens']}")
 
-    per_call_cap = config.get("per_call_hard_cap_inr", 5.0)
+    per_call_cap = config["per_call_hard_cap_inr"]
 
     if est_cost_inr > per_call_cap:
         raise BudgetExceeded(f"Projected cost {est_cost_inr} exceeds per-call cap {per_call_cap}")
@@ -88,9 +88,9 @@ def process_call(provider, request, fixture_id, rep, budget, spent, config, fixt
     is_valid = validate_schema(res["output"], request["schema"])
 
     if request["track"] == "verification":
-        score_res = score_verification(res["output"], {"gold": fixture_gold, **request["fixture"]}, is_valid)
+        score_res = score_verification(res["output"], request["fixture"], fixture_gold, is_valid)
     else:
-        score_res = score_copy(res["output"], {"gold": fixture_gold, **request["fixture"]}, is_valid)
+        score_res = score_copy(res["output"], request["fixture"], fixture_gold, is_valid)
 
     with open(out_dir / "raw" / f"{run_id}.json", "w") as f:
         json.dump(res, f, indent=2)
@@ -129,7 +129,7 @@ def run_benchmark(mode="PERFECT"):
     v_schema, c_schema = load_schemas()
     v_prompt, c_prompt = load_prompts()
 
-    budget = config.get("smoke_test_global_cap_inr", config.get("global_budget_inr", 200.0))
+    budget = config.get("global_budget_inr", 200.0)
     spent = 0.0
 
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S") + f"_{uuid.uuid4().hex[:6]}_{mode.lower()}"
