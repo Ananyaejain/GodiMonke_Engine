@@ -1,218 +1,547 @@
 # CURRENT_STATE.md
 
+
+
 ## Project
 
-**Name:** Godi Monke Engine  
-**Current project stage:** Foundation / specification  
-**Document version:** 0.1  
+
+
+**Name:** Godi Monke Engine
+
+**Current project stage:** Engineering specification freeze
+
+**Document version:** 0.2
+
 **Status:** Pre-implementation
 
+
+
 ---
+
+
 
 ## Current Milestone
 
-**Milestone 0B — Canonical product specification**
 
-The repository skeleton exists. The current focus is defining the product, brand, editorial, source, fact-checking, mascot, and content-format rules before application logic is implemented.
+
+**Milestone 0C — Engineering Specification Freeze**
+
+
+
+Canonical product specification `00`–`07` has been reviewed and pushed to `main`.
+
+
+
+Engineering specification `08`–`15` has now been drafted and internally consistency-checked. It must be installed on a dedicated specification branch, pushed for remote review, and accepted before substantive application code begins.
+
+
 
 ---
+
+
 
 ## Completed
 
+
+
 - Initial repository/directory skeleton created.
-- Git repository created and mirrored to the public GitHub repository.
-- `AGENTS.md` drafted.
-- `docs/canonical/00_PROJECT_CHARTER.md` drafted.
-- `docs/canonical/01_BRAND_BIBLE.md` drafted.
-- `docs/canonical/02_MASCOT_BIBLE.md` drafted.
-- `docs/canonical/03_VOICE_AND_HUMOUR.md` drafted.
-- `docs/canonical/04_EDITORIAL_POLICY.md` drafted.
-- `docs/canonical/05_SOURCE_POLICY.md` drafted.
-- `docs/canonical/06_FACT_CHECKING_PROTOCOL.md` drafted.
-- `docs/canonical/07_CONTENT_FORMATS.md` drafted.
+
+- Public GitHub repository established.
+
+- Canonical product specification `00`–`07` reviewed and pushed.
+
+- `AGENTS.md` established.
+
+- Brand, mascot, voice, editorial, source, fact-checking, and content-format rules established.
+
+- Engineering architecture drafted:
+
+  - `08_SYSTEM_ARCHITECTURE.md`
+
+  - `09_DATA_MODEL.md`
+
+  - `10_WORKFLOW_STATE_MACHINE.md`
+
+  - `11_MODEL_ROUTING.md`
+
+  - `12_QA_GATES.md`
+
+  - `13_COST_POLICY.md`
+
+  - `14_SECURITY_AND_SECRETS.md`
+
+  - `15_ROADMAP.md`
+
+- Current model/pricing baseline checked against official provider documentation on 2026-09-02.
+
+- Engineering documents internally checked for the major project invariants:
+
+  - ₹5,000 total monthly planning ceiling;
+
+  - quality-first launch;
+
+  - approximately two posts/day;
+
+  - three discovery scans/day;
+
+  - human final approval;
+
+  - no automatic publishing in version 1;
+
+  - evidence-backed claim ledger;
+
+  - separation of facts and commentary;
+
+  - deterministic factual rendering;
+
+  - local-first development;
+
+  - provider-independent architecture.
+
+
 
 ---
+
+
 
 ## In Progress
 
-- Human review and consistency audit of the canonical documentation pack.
-- Preparing the engineering specification set.
-- Preparing the canonical mascot reference assets.
+
+
+- Install engineering specification `08`–`15` on branch:
+
+  - `spec/engineering-v0.1`
+
+- Push that branch for remote review.
+
+- Verify canonical `00`–`07` remain unchanged.
+
+- Review the remote diff before merging engineering specifications to `main`.
+
+
 
 ---
+
+
 
 ## Not Started
 
-- Python application skeleton.
+
+
+- Python application foundation.
+
 - Configuration system.
-- SQLite schema.
-- Workflow state machine.
+
+- Structured logging.
+
+- CLI.
+
+- SQLite schema and migrations.
+
+- Workflow state implementation.
+
+- Audit-event implementation.
+
+- Fake-provider vertical slice.
+
 - Telegram interface.
-- Topic discovery integration.
-- Research pipeline.
+
+- Deterministic renderer.
+
+- Gemini topic discovery.
+
+- Safe source retrieval.
+
+- Research-packet generation.
+
 - Claim ledger implementation.
-- Independent verification.
-- Content planner.
-- Mascot-generation pipeline.
-- Deterministic HTML/SVG renderer.
-- Automated QA.
-- API cost accounting.
+
+- OpenAI independent verification.
+
+- Copy/humour generation.
+
+- Mascot image API integration.
+
+- End-to-end automated QA.
+
 - VPS deployment.
+
 - Instagram/X publishing integrations.
 
----
 
-## Current Product Decisions
-
-- Target: approximately **two high-quality posts per day** during launch.
-- Quality takes priority over volume.
-- Topic discovery runs approximately **three times per day**.
-- Each scan should surface approximately **10 candidate topics**.
-- Discovery should deliberately include:
-  - trending/high-attention topics;
-  - under-covered but potentially important topics.
-- Research language: **English**.
-- Post information language: primarily **English**.
-- Humour/commentary may use natural **Hinglish**.
-- Posts may be single-page or carousel depending on information density.
-- Initial production formats:
-  - `GM-SINGLE-01`;
-  - `GM-COMPARE-01`;
-  - `GM-CAROUSEL-01`.
-- Human approval is mandatory before publication.
-- Version 1 has **no automatic publishing**.
-- Antigravity is a development tool only and is not part of the production runtime.
-- Codex may later be used as an independent code reviewer.
-- Python will own workflow state.
-- LLMs will be replaceable bounded components.
-- Important factual infographic text will be rendered deterministically by code.
-- Generative image models will primarily create mascot art and supporting visuals.
-- Factual claims must map to stored source-backed claim records.
-- Commentary and humour must remain separate from locked factual claims.
-- High-risk stories require stricter verification and human review.
 
 ---
 
-## Infrastructure Decisions
 
-### Development
 
-Run locally first.
+## Current Runtime Architecture Decision
 
-Available local machine:
-- 16 GB RAM;
-- GTX-class consumer GPU;
-- model inference expected to use external APIs rather than large local models.
 
-### VPS
 
-No VPS is required during the first implementation stage.
+Version 1 will be a small Python application.
 
-A low-cost VPS should be considered once:
-- the workflow is stable;
-- scheduled discovery needs to run while local machines are offline;
-- the team is ready for always-on operation.
+
+
+Primary baseline:
+
+
+
+- Python 3.12+
+
+- Pydantic v2
+
+- SQLAlchemy 2.x
+
+- Alembic
+
+- SQLite
+
+- Telegram long polling
+
+- Jinja2 + HTML/CSS
+
+- Playwright/Chromium for deterministic rendering
+
+- pytest
+
+- provider adapters around external APIs
+
+
+
+Python owns workflow state.
+
+
+
+Models are bounded workers and cannot bypass state, evidence, budget, or approval rules.
+
+
 
 ---
 
-## Budget
 
-Approximate total monthly ceiling:
+
+## Current Model Routing Baseline
+
+
+
+Checked 2026-09-02.
+
+
+
+### Topic discovery / grounded research
+
+Primary:
+
+- Gemini 3.7 Flash
+
+- Google Search grounding
+
+
+
+### Routine low-cost extraction/classification
+
+Primary:
+
+- local deterministic code first
+
+- Gemini 3.5 Flash-Lite only when semantic model judgement is useful
+
+
+
+### Research synthesis / claim extraction
+
+Primary:
+
+- Gemini 3.7 Flash
+
+
+
+### Independent claim verification
+
+Primary:
+
+- GPT-5.6 Terra
+
+
+
+The verifier must not silently fall back to the same model/provider that produced the research conclusion.
+
+
+
+### Optional inexpensive model QA
+
+- GPT-5.6 Luna
+
+
+
+### Mascot generation/editing
+
+Primary:
+
+- Gemini 3.1 Flash Image / Nano Banana 2
+
+
+
+Reuse approved mascot assets before generating new ones.
+
+
+
+### Manual fallback
+
+The human team may manually use existing ChatGPT Plus for difficult editorial or mascot work.
+
+
+
+ChatGPT Plus is not treated as API credit.
+
+
+
+---
+
+
+
+## Current Cost Policy
+
+
+
+Total monthly planning ceiling:
+
+
 
 **₹5,000**
 
-Known/expected allocations:
 
-- ChatGPT Plus: approximately ₹2,000;
-- X subscription: approximately ₹500;
-- optional VPS: approximately ₹400;
-- remaining budget available for pay-as-you-go model/search/API usage.
 
-The final cost policy and provider routing are not yet frozen.
+Planning envelope:
 
----
 
-## Team Workflow
 
-### Human owners
-- make product decisions;
-- select topics;
-- review evidence;
-- approve copy;
-- approve visuals;
-- approve publication.
+- ChatGPT Plus: ₹2,000
 
-### ChatGPT
-- architecture;
-- canonical documentation;
-- editorial/system design;
-- implementation specifications;
-- QA/review support;
-- precise Antigravity task prompts.
+- X subscription: ₹500
 
-### Antigravity
-- primary implementation agent with controlled computer access;
-- implements only defined milestones;
-- must obey `AGENTS.md`.
+- VPS reserve: ₹400
 
-### Codex
-- optional independent engineering reviewer after meaningful implementation exists.
+- automated APIs: ₹1,600
 
----
+- contingency/tax/FX: ₹500
 
-## Repository Policy
 
-Canonical documents are human-owned.
 
-Coding agents may read but must not silently modify product rules.
+Initial automated API caps:
 
-Important stable checkpoints should be committed and pushed to GitHub only after review.
 
-Before recommending a major push, the affected specification or implementation should be checked for:
 
-- internal contradictions;
-- architecture drift;
-- missing safety/verification gates;
-- factual-provenance weaknesses;
-- unintended scope changes;
-- security mistakes;
-- test failures;
-- secret exposure;
-- inconsistency with earlier canonical decisions.
+- Google: ₹900
+
+- OpenAI: ₹600
+
+- miscellaneous: ₹100
+
+
+
+Google Search-grounding internal usage policy:
+
+
+
+- warning: 3,500 requests/month;
+
+- automatic stop: 4,500 requests/month;
+
+- provider-advertised current free allowance: 5,000/month shared across Gemini 3.x.
+
+
+
+No automatic paid grounding overage.
+
+
 
 ---
 
-## Known Open Items
 
-- Canonical mascot master/reference files have not yet been installed into the repository.
-- Exact API/model routing is still provisional.
-- Exact discovery scan times are not yet fixed.
-- Telegram bot design is specified conceptually but not engineered.
-- Final database schemas have not been written.
-- Final workflow state transitions have not been written.
-- Exact template dimensions and typography are not yet frozen.
-- No production code should be written until the engineering specification is sufficiently defined.
+
+## Current Workflow Decisions
+
+
+
+Target:
+
+- approximately two high-quality posts/day at launch.
+
+
+
+Discovery:
+
+- three configurable scans/day;
+
+- approximately ten candidates/scan;
+
+- balance trending and under-covered topics;
+
+- humans normally select a topic before full research.
+
+
+
+Content:
+
+- research in English;
+
+- core information primarily English;
+
+- natural Hinglish allowed for humour/commentary;
+
+- information is primary;
+
+- mascot supports rather than dominates;
+
+- single page when sufficient;
+
+- carousel when context genuinely requires it.
+
+
+
+Initial formats:
+
+- `GM-SINGLE-01`
+
+- `GM-COMPARE-01`
+
+- `GM-CAROUSEL-01`
+
+
+
+Publishing:
+
+- human final approval mandatory;
+
+- manual publishing in version 1.
+
+
 
 ---
+
+
+
+## Current Reliability Decisions
+
+
+
+- Every factual claim intended for publication maps to stored evidence.
+
+- Numeric values are structured.
+
+- Derived arithmetic is performed by Python.
+
+- Research and independent verification use different providers where practical.
+
+- Factual copy is restricted to an approved claim allowlist.
+
+- Important text is rendered by code, not an image model.
+
+- Human approval references exact copy/render versions.
+
+- Editing after approval invalidates the affected approval.
+
+- High-risk stories require enhanced human review.
+
+- Model/provider failures cause the workflow to stop safely rather than fabricate fallback facts.
+
+- Golden Set regression testing will begin after the local pilot produces strong approved cases.
+
+
+
+---
+
+
+
+## Security Decisions
+
+
+
+The GitHub repository is public.
+
+
+
+Therefore:
+
+
+
+- no secrets in Git;
+
+- operational `data/`, databases, model outputs, logs, and exports must be ignored before runtime data is created;
+
+- Telegram uses a human-user allowlist;
+
+- source retrieval must block SSRF/private-network targets;
+
+- web/source text is untrusted and may contain prompt injection;
+
+- model text is escaped and cannot become raw executable HTML;
+
+- Antigravity/Codex remain development tools only.
+
+
+
+---
+
+
+
+## Current Git Strategy
+
+
+
+Stable reviewed checkpoints:
+
+- `main`
+
+
+
+Current specification branch:
+
+- `spec/engineering-v0.1`
+
+
+
+Do not merge the engineering branch until the remote diff has been reviewed.
+
+
+
+Implementation should later use short-lived feature branches for meaningful milestones.
+
+
+
+---
+
+
 
 ## Next Planned Work
 
-1. Complete the human review of canonical documents `00`–`07`.
-2. Add the locked mascot master asset and begin the mascot reference pack.
-3. Draft engineering documents:
-   - `08_SYSTEM_ARCHITECTURE.md`;
-   - `09_DATA_MODEL.md`;
-   - `10_WORKFLOW_STATE_MACHINE.md`;
-   - `11_MODEL_ROUTING.md`;
-   - `12_QA_GATES.md`;
-   - `13_COST_POLICY.md`;
-   - `14_SECURITY_AND_SECRETS.md`;
-   - `15_ROADMAP.md`.
-4. Freeze the first engineering milestone.
-5. Give Antigravity the first implementation prompt.
+
+
+1. Install engineering documents `08`–`15` and this `CURRENT_STATE.md` on `spec/engineering-v0.1`.
+
+2. Run local diff/placeholder checks.
+
+3. Push the branch.
+
+4. Perform remote GitHub review of the exact branch contents.
+
+5. Fix any discrepancy.
+
+6. Merge the reviewed engineering specification to `main`.
+
+7. Begin **Milestone 1 — Application Foundation** with a narrow Antigravity prompt.
+
+8. Do not configure real provider keys until security/.gitignore foundation is in place.
+
+
 
 ---
 
+
+
 ## Current Rule
 
-**Do not begin substantive implementation until the current specification checkpoint has been reviewed and deliberately accepted.**
+
+
+**No substantive production code before engineering specification v0.1 is remotely reviewed and accepted.**
