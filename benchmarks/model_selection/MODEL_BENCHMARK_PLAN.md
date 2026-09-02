@@ -516,6 +516,9 @@ Maximum: 100 points.
 
 ### B. Evidence fidelity — 25
 Does the rationale accurately reflect supplied evidence?
+- 15 points: Deterministic source/assessment integrity (no invented source IDs, expected source coverage, assessment-role correctness)
+- 10 points: NEEDS_HUMAN_SCORE for semantic rationale fidelity.
+(Final score completed after blinded human review.)
 
 ### C. Caveat retention — 20
 Does the model preserve material limitations?
@@ -544,6 +547,19 @@ Maximum: 100 points.
 
 ### A. Factual obedience — 35
 Uses only locked factual content.
+
+A. Deterministic factual-safety gate — 20 points
+   - valid claim IDs
+   - no invented numbers
+   - no changed locked numbers
+   - no invented dates
+   - no invented quotes
+   - FACT blocks have claim IDs
+
+B. Semantic factual fidelity — 15 points
+   - NEEDS_HUMAN_SCORE
+   - human checks whether factual prose genuinely corresponds to the referenced locked claim(s)
+   - human checks unsupported named assertions / causal claims
 
 ### B. Clarity / information hierarchy — 20
 Reader can understand what happened and why it matters.

@@ -1,8 +1,17 @@
 import json
 
+SOURCE_ROLE_MAPPING = {
+    "SUPPORTS": "SUPPORTS",
+    "QUALIFIES": "QUALIFIES",
+    "CONTEXT": "CONTEXT",
+    "CONTRADICTS": "CONTRADICTS",
+    "COUNTER_EVIDENCE": "CONTRADICTS",
+    "CORROBORATION": "SUPPORTS",
+    "ORIGINAL_STATEMENT": "CONTEXT"
+}
+
 class BenchmarkProvider:
     def estimate_usage(self, request, route_config):
-        """Returns (estimated_input_tokens, max_output_tokens, estimated_cost_inr, estimated_cost_usd)"""
         raise NotImplementedError
     def run_verification(self, request, route_config):
         raise NotImplementedError
@@ -10,9 +19,8 @@ class BenchmarkProvider:
         raise NotImplementedError
 
 class FakeProvider(BenchmarkProvider):
-    def __init__(self, mode, fixtures_raw):
+    def __init__(self, mode):
         self.mode = mode
-        self.fixtures_raw = fixtures_raw
 
     def estimate_usage(self, request, route_config):
         if self.mode == "BUDGET_FAIL":
@@ -32,24 +40,18 @@ class FakeProvider(BenchmarkProvider):
         output = {
             "verdict": "SUPPORTED",
             "confidence": 0.9,
-            "evidence_assessment": [
-                {
-                    "source_id": "SRC-F01-A",
-                    "assessment": "SUPPORTS"
-                }
-            ],
-            "material_caveats": ["All three values are Budget Estimates for 2026-27, not actual realised expenditure."],
+            "evidence_assessment": [],
+            "material_caveats": [],
             "missing_evidence": [],
             "requires_human_review": False,
             "rationale_summary": "Based on the evidence, the claim is valid."
         }
 
-        # Dynamically map evidence based on request fixture
         if "fixture" in request and "evidence" in request["fixture"]:
             ev = request["fixture"]["evidence"]
             if ev:
                 output["evidence_assessment"] = [
-                    {"source_id": e["source_id"], "assessment": "SUPPORTS"} for e in ev
+                    {"source_id": e["source_id"], "assessment": SOURCE_ROLE_MAPPING.get(e.get("role", "SUPPORTS"), "SUPPORTS")} for e in ev
                 ]
 
         if self.mode == "CRITICAL_FAIL":
@@ -62,23 +64,30 @@ class FakeProvider(BenchmarkProvider):
             output["material_caveats"] = []
 
         if self.mode == "PERFECT":
-            # Match actual gold verdict
-            fix_text = request["fixture"].get("verification_claim", {}).get("text", "")
-            for fid, f in self.fixtures_raw.items():
-                if f.get("verification_claim", {}).get("text") == fix_text:
-                    gold = f.get("gold", {})
-                    if gold.get("verdict"):
-                        output["verdict"] = gold["verdict"]
-                    if gold.get("material_caveats"):
-                        output["material_caveats"] = gold["material_caveats"]
-                    break
+            fix = request.get("fixture", {})
+            rs = fix.get("research_summary", "Valid")
+            output["rationale_summary"] = rs
+            output["material_caveats"] = [rs]
+
+            output["evidence_assessment"] = []
+            for ev in fix.get("evidence", []):
+                role = ev.get("role", "SUPPORTS")
+                assmt = SOURCE_ROLE_MAPPING.get(role, "SUPPORTS")
+                output["evidence_assessment"].append({
+                    "source_id": ev.get("source_id"),
+                    "assessment": assmt
+                })
+
+        cost = 0.1
+        if self.mode == "ACTUAL_COST_FAIL":
+            cost = 15.0
 
         return {
             "output": output,
             "input_tokens": in_t,
             "output_tokens": out_t,
             "cached_tokens": 0,
-            "cost_inr": 0.1,
+            "cost_inr": cost,
             "retry_count": 0,
             "error_status": "OK"
         }
@@ -86,20 +95,15 @@ class FakeProvider(BenchmarkProvider):
     def run_copy(self, request, route_config):
         in_t, out_t = self._get_base_tokens(request)
 
+        fmt = request["fixture"].get("copy_format", "GM-SINGLE-01")
         output = {
-            "format": request["fixture"].get("copy_format", "GM-SINGLE-01"),
+            "format": fmt,
             "slides": [
                 {
                     "slide_index": 1,
                     "role": "HOOK",
                     "headline": "A Great Post",
-                    "body_blocks": [
-                        {
-                            "kind": "FACT",
-                            "text": "This is a fact.",
-                            "claim_ids": []
-                        }
-                    ],
+                    "body_blocks": [{"kind": "FACT", "text": "This is a fact.", "claim_ids": []}],
                     "commentary": "Interesting",
                     "mascot_direction": "Smiling"
                 }
@@ -107,27 +111,40 @@ class FakeProvider(BenchmarkProvider):
             "caption": "To conclude..."
         }
 
+        if fmt == "GM-CAROUSEL-01" and self.mode == "PERFECT":
+            output["slides"] = [
+                {
+                    "slide_index": i,
+                    "role": "HOOK",
+                    "headline": "A Great Post",
+                    "body_blocks": [{"kind": "FACT", "text": "This is a fact.", "claim_ids": []}],
+                    "commentary": "Interesting",
+                    "mascot_direction": "Smiling"
+                } for i in range(1, 4)
+            ]
+
         if self.mode == "CRITICAL_FAIL":
             output["slides"][0]["body_blocks"][0]["text"] += " Number 8888.88."
             output["slides"][0]["body_blocks"][0]["claim_ids"] = []
         elif self.mode == "BAD_SCHEMA":
             output = {"bad": "schema"}
         elif self.mode == "PERFECT":
-            fix_summary = request["fixture"].get("research_summary", "")
-            for fid, f in self.fixtures_raw.items():
-                if f.get("research_summary") == fix_summary:
-                    lcs = f.get("locked_claims", [])
-                    if lcs:
-                        output["slides"][0]["body_blocks"][0]["claim_ids"] = [lcs[0]["claim_id"]]
-                        output["slides"][0]["body_blocks"][0]["text"] = lcs[0]["text"]
-                    break
+            lcs = request["fixture"].get("locked_claims", [])
+            if lcs:
+                for s in output["slides"]:
+                    s["body_blocks"][0]["claim_ids"] = [lcs[0]["claim_id"]]
+                    s["body_blocks"][0]["text"] = lcs[0]["text"]
+
+        cost = 0.1
+        if self.mode == "ACTUAL_COST_FAIL":
+            cost = 15.0
 
         return {
             "output": output,
             "input_tokens": in_t,
             "output_tokens": out_t,
             "cached_tokens": 0,
-            "cost_inr": 0.1,
+            "cost_inr": cost,
             "retry_count": 0,
             "error_status": "OK"
         }

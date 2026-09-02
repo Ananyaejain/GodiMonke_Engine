@@ -14,6 +14,9 @@ class TokenLimitExceeded(Exception):
 class BudgetExceeded(Exception):
     pass
 
+class BudgetAccountingError(Exception):
+    pass
+
 def generate_individual_run_id(track, fixture_id, model_id, rep):
     if ":" in model_id:
         provider, model = model_id.split(":", 1)
@@ -47,7 +50,8 @@ def process_call(provider, request, fixture_id, rep, budget, spent, config, fixt
     if est_in > request["max_input_tokens"]:
         raise TokenLimitExceeded(f"Estimated input tokens {est_in} > {request['max_input_tokens']}")
 
-    per_call_cap = config.get("smoke_test_call_cap_inr", 10.0)
+    per_call_cap = config.get("per_call_hard_cap_inr", 5.0)
+
     if est_cost_inr > per_call_cap:
         raise BudgetExceeded(f"Projected cost {est_cost_inr} exceeds per-call cap {per_call_cap}")
 
@@ -64,6 +68,13 @@ def process_call(provider, request, fixture_id, rep, budget, spent, config, fixt
     latency = (time.time() - start_time) * 1000.0
 
     actual_cost = res.get("cost_inr", 0.0)
+
+    if actual_cost > per_call_cap:
+        raise BudgetAccountingError(f"Actual cost {actual_cost} exceeds per-call cap {per_call_cap}")
+
+    if actual_cost > est_cost_inr + 0.05: # Tolerance for rounding
+        raise BudgetAccountingError(f"Actual cost {actual_cost} materially exceeds estimate {est_cost_inr}")
+
     spent += actual_cost
 
     if res["input_tokens"] > request["max_input_tokens"]:
@@ -105,9 +116,8 @@ def process_call(provider, request, fixture_id, rep, budget, spent, config, fixt
         "retry_count": res.get("retry_count", 0),
         "error_status": res.get("error_status", "OK")
     }
-    # Add score component based on track
     if request["track"] == "verification":
-        summary["score"] = score_res.get("deterministic_total", 0)
+        summary["score"] = score_res.get("deterministic_subtotal", 0)
     else:
         summary["score"] = score_res.get("deterministic_subtotal", 0)
 
@@ -119,7 +129,7 @@ def run_benchmark(mode="PERFECT"):
     v_schema, c_schema = load_schemas()
     v_prompt, c_prompt = load_prompts()
 
-    budget = config["global_budget_inr"]
+    budget = config.get("smoke_test_global_cap_inr", config.get("global_budget_inr", 200.0))
     spent = 0.0
 
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S") + f"_{uuid.uuid4().hex[:6]}_{mode.lower()}"
@@ -130,7 +140,7 @@ def run_benchmark(mode="PERFECT"):
     (out_dir / "normalized").mkdir(exist_ok=True)
     (out_dir / "scores").mkdir(exist_ok=True)
 
-    provider = FakeProvider(mode, fixtures)
+    provider = FakeProvider(mode)
     task_calls = []
 
     try:
@@ -153,6 +163,10 @@ def run_benchmark(mode="PERFECT"):
                     task_calls.append(c_sum)
     except BudgetExceeded as e:
         print(f"Benchmark stopped: {e}")
+    except BudgetAccountingError as e:
+        print(f"Post-call budget accounting error: {e}")
+        if mode == "ACTUAL_COST_FAIL":
+            raise e
     except TokenLimitExceeded as e:
         print(f"Token limit exceeded: {e}")
         if "TOKEN_FAIL" in mode:
