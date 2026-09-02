@@ -1,0 +1,91 @@
+{
+  "fixture_id": "F04_INDIA_CHINA_SR_TALKS",
+  "title": "India-China boundary talks: concrete mechanisms without a boundary settlement",
+  "fixture_family": "india_geopolitics",
+  "risk_level": "HIGH",
+  "human_gold_status": "PROVISIONAL_REVIEW_REQUIRED",
+  "verification_claim": {
+    "claim_id": "CLM-F04-VERIFY",
+    "text": "The 25th India-China Special Representatives talks in August 2026 produced concrete border-management measures, including two additional meeting points and two additional military hotline channels, but did not settle the boundary dispute.",
+    "claim_type": "geopolitical_event"
+  },
+  "definitions": [
+    "A border-management mechanism is not the same as a final boundary settlement.",
+    "An agreement to continue negotiations does not establish that the territorial dispute has been resolved."
+  ],
+  "evidence": [
+    {
+      "source_id": "SRC-F04-A",
+      "source_tier": "A",
+      "publisher": "Ministry of Foreign Affairs of the People's Republic of China",
+      "title": "Eight Points of Outcomes and Consensus for the 25th Round of Talks Between Special Representatives of China and India on the Boundary Question",
+      "published_at": "2026-08-26",
+      "source_url": "https://www.mfa.gov.cn/eng/wjbzhd/202608/t20260826_12011002.html",
+      "role": "SUPPORTS",
+      "evidence_summary": "The official outcome says the sides agreed to two additional meeting points for senior military meetings and two additional border military hotline channels in the Eastern and Middle Sectors."
+    },
+    {
+      "source_id": "SRC-F04-B",
+      "source_tier": "A",
+      "publisher": "Ministry of Foreign Affairs of the People's Republic of China",
+      "title": "Eight Points of Outcomes and Consensus for the 25th Round of Talks",
+      "published_at": "2026-08-26",
+      "source_url": "https://www.mfa.gov.cn/eng/wjbzhd/202608/t20260826_12011002.html",
+      "role": "QUALIFIES",
+      "evidence_summary": "The same outcome says both sides remain committed to advancing negotiations toward a fair, reasonable and mutually acceptable boundary solution, showing that a final settlement was not reached."
+    },
+    {
+      "source_id": "SRC-F04-C",
+      "source_tier": "B",
+      "publisher": "Reuters",
+      "title": "China, India reaffirm border peace, expand communication channels",
+      "published_at": "2026-08-26",
+      "source_url": "https://www.reuters.com/world/china/china-india-reaffirm-border-peace-expand-communication-channels-2026-08-26/",
+      "role": "CORROBORATION",
+      "evidence_summary": "Reuters reported that both countries reaffirmed border peace and expanded communication while continuing to pursue a mutually acceptable resolution."
+    }
+  ],
+  "research_summary": "The August 2026 Special Representatives talks produced concrete mechanisms intended to improve border management and communication. These included two additional meeting points and two additional military hotline channels. The official outcome also explicitly says negotiations toward a boundary settlement will continue, so the talks should not be described as having resolved or settled the boundary dispute.",
+  "locked_claims": [
+    {
+      "claim_id": "CLM-F04-1",
+      "text": "The 25th round of Special Representatives talks was held in Beijing on 25 August 2026.",
+      "display_value": "25 Aug 2026"
+    },
+    {
+      "claim_id": "CLM-F04-2",
+      "text": "The sides agreed to two additional senior military meeting points.",
+      "display_value": "+2 meeting points"
+    },
+    {
+      "claim_id": "CLM-F04-3",
+      "text": "The sides agreed to two additional border military hotline channels.",
+      "display_value": "+2 hotlines"
+    },
+    {
+      "claim_id": "CLM-F04-4",
+      "text": "The two sides continued negotiations toward a boundary settlement; no final boundary settlement was announced.",
+      "display_value": "Boundary unresolved"
+    }
+  ],
+  "copy_format": "GM-CAROUSEL-01",
+  "gold": {
+    "verdict": "SUPPORTED",
+    "material_caveats": [
+      "The measures improve border-management mechanisms; they do not settle the territorial dispute.",
+      "Strategic interpretations about motives or long-term normalization are analysis, not confirmed facts."
+    ],
+    "prohibited_claims": [
+      "India and China resolved their boundary dispute in August 2026.",
+      "The Line of Actual Control was formally settled or demarcated.",
+      "The talks guarantee permanent normalization of India-China relations.",
+      "Any unprovided strategic motive is an established fact."
+    ],
+    "required_claim_ids_for_copy": [
+      "CLM-F04-1",
+      "CLM-F04-2",
+      "CLM-F04-3",
+      "CLM-F04-4"
+    ]
+  }
+}

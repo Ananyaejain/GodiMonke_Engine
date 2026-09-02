@@ -1,0 +1,64 @@
+{
+  "fixture_id": "F02_NATIONAL_HIGHWAYS_NETWORK",
+  "title": "National Highways: network expansion vs construction",
+  "fixture_family": "infrastructure_data",
+  "risk_level": "LOW",
+  "human_gold_status": "PROVISIONAL_REVIEW_REQUIRED",
+  "verification_claim": {
+    "claim_id": "CLM-F02-VERIFY",
+    "text": "MoRTH reported that India's National Highway network increased from 91,287 km in 2014 to 146,195 km in 2024-25, an increase of about 60%.",
+    "claim_type": "numeric_comparison"
+  },
+  "definitions": [
+    "National Highway network length is the total network classified/notified as National Highways.",
+    "An increase in network length is not automatically identical to kilometres of newly constructed road."
+  ],
+  "evidence": [
+    {
+      "source_id": "SRC-F02-A",
+      "source_tier": "A",
+      "publisher": "Ministry of Road Transport and Highways, Government of India",
+      "title": "Annual Report 2024-25",
+      "published_at": "2025-02-13",
+      "source_url": "https://morth.nic.in/sites/default/files/Annual-Report-English-with-Cover.pdf",
+      "role": "SUPPORTS",
+      "evidence_summary": "MoRTH reports total National Highway length of 146,195 km and states that the NH network increased by 60% from 91,287 km in 2014."
+    }
+  ],
+  "research_summary": "The official MoRTH annual report states that the National Highway network increased from 91,287 km in 2014 to 146,195 km in 2024-25, approximately 60%. This is a network-length comparison. It should not be rewritten as a claim that exactly 54,908 km of brand-new road were physically constructed, because network length and construction length are different metrics.",
+  "locked_claims": [
+    {
+      "claim_id": "CLM-F02-1",
+      "text": "National Highway network length in 2014 was 91,287 km.",
+      "display_value": "91,287 km"
+    },
+    {
+      "claim_id": "CLM-F02-2",
+      "text": "National Highway network length reported for 2024-25 was 146,195 km.",
+      "display_value": "1,46,195 km"
+    },
+    {
+      "claim_id": "CLM-F02-3",
+      "text": "The reported increase in NH network length was about 60%.",
+      "display_value": "~60%"
+    }
+  ],
+  "copy_format": "GM-COMPARE-01",
+  "gold": {
+    "verdict": "SUPPORTED",
+    "material_caveats": [
+      "Network expansion is not the same metric as newly constructed road length.",
+      "The official figure is 146,195 km; changing it to 146,145 km or another nearby value is a factual error."
+    ],
+    "prohibited_claims": [
+      "Exactly 54,908 km of brand-new National Highways were constructed between 2014 and 2024-25.",
+      "Every kilometre of network increase represents newly built road.",
+      "The 2024-25 NH network figure was 146,145 km."
+    ],
+    "required_claim_ids_for_copy": [
+      "CLM-F02-1",
+      "CLM-F02-2",
+      "CLM-F02-3"
+    ]
+  }
+}

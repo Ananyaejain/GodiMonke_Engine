@@ -1,0 +1,42 @@
+{
+  "fixture_pack_version": "0.2",
+  "status": "PROVISIONAL_HUMAN_REVIEW_REQUIRED",
+  "fixture_count": 5,
+  "fixtures": [
+    {
+      "fixture_id": "F01_UNION_BUDGET_CAPEX",
+      "title": "Union Budget 2026-27: capital expenditure vs effective capital expenditure",
+      "family": "union_budget_finance",
+      "risk_level": "LOW",
+      "gold_verdict": "SUPPORTED"
+    },
+    {
+      "fixture_id": "F02_NATIONAL_HIGHWAYS_NETWORK",
+      "title": "National Highways: network expansion vs construction",
+      "family": "infrastructure_data",
+      "risk_level": "LOW",
+      "gold_verdict": "SUPPORTED"
+    },
+    {
+      "fixture_id": "F03_CHIDAMBARAM_CAPEX_CLAIM",
+      "title": "Political claim check: was Centre capital expenditure 'cut' in 2025-26?",
+      "family": "political_claim_check",
+      "risk_level": "MEDIUM",
+      "gold_verdict": "MISLEADING_WITHOUT_CONTEXT"
+    },
+    {
+      "fixture_id": "F04_INDIA_CHINA_SR_TALKS",
+      "title": "India-China boundary talks: concrete mechanisms without a boundary settlement",
+      "family": "india_geopolitics",
+      "risk_level": "HIGH",
+      "gold_verdict": "SUPPORTED"
+    },
+    {
+      "fixture_id": "F05_DEFENCE_OFFSETS",
+      "title": "Under-covered policy story: defence offsets and the difference between unfulfilled and overdue",
+      "family": "undercovered_institutional_policy",
+      "risk_level": "MEDIUM",
+      "gold_verdict": "MISLEADING_WITHOUT_CONTEXT"
+    }
+  ]
+}

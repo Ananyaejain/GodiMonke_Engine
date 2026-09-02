@@ -1,0 +1,66 @@
+{
+  "benchmark_version": "0.1",
+  "models": [
+    {
+      "provider": "google",
+      "model": "gemini-3.7-flash",
+      "enabled": true,
+      "verification": {
+        "thinking_level": "medium"
+      },
+      "copy": {
+        "thinking_level": "low"
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "enabled": true,
+      "verification": {
+        "thinking": true,
+        "reasoning_effort": "low"
+      },
+      "copy": {
+        "thinking": false,
+        "temperature": 0.4
+      }
+    },
+    {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro",
+      "enabled": true,
+      "verification": {
+        "thinking": true,
+        "reasoning_effort": "high"
+      },
+      "copy": {
+        "thinking": true,
+        "reasoning_effort": "low"
+      }
+    }
+  ],
+  "repetitions": 3,
+  "global_budget_inr": 200,
+  "verification": {
+    "max_input_tokens": 15000,
+    "max_output_tokens": 1200,
+    "temperature_target": 0.0,
+    "max_output_tokens_by_route": {
+      "google:gemini-3.7-flash": 1200,
+      "deepseek:deepseek-v4-flash": 1200,
+      "deepseek:deepseek-v4-pro": 1800
+    }
+  },
+  "copy": {
+    "max_input_tokens": 18000,
+    "max_output_tokens": 1800,
+    "temperature_target": 0.4,
+    "max_output_tokens_by_route": {
+      "google:gemini-3.7-flash": 1800,
+      "deepseek:deepseek-v4-flash": 1800,
+      "deepseek:deepseek-v4-pro": 1800
+    }
+  },
+  "search_enabled": false,
+  "tools_enabled": false
+}

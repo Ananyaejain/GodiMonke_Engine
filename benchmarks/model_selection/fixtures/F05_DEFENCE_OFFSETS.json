@@ -1,0 +1,85 @@
+{
+  "fixture_id": "F05_DEFENCE_OFFSETS",
+  "title": "Under-covered policy story: defence offsets and the difference between unfulfilled and overdue",
+  "fixture_family": "undercovered_institutional_policy",
+  "risk_level": "MEDIUM",
+  "human_gold_status": "PROVISIONAL_REVIEW_REQUIRED",
+  "verification_claim": {
+    "claim_id": "CLM-F05-VERIFY",
+    "text": "About 45% of India's defence offset obligations were in default as of December 2025.",
+    "claim_type": "institutional_numeric_claim"
+  },
+  "definitions": [
+    "Unfulfilled obligations across ongoing contracts are not automatically the same as overdue or defaulted obligations.",
+    "Some obligations in long-running procurement contracts may have future discharge schedules."
+  ],
+  "evidence": [
+    {
+      "source_id": "SRC-F05-A",
+      "source_tier": "B",
+      "publisher": "PRS Legislative Research",
+      "title": "Standing Committee Report Summary: Management of Defence Offsets",
+      "published_at": "2026-07-30",
+      "source_url": "https://prsindia.org/policy/report-summaries/management-of-defence-offsets",
+      "role": "SUPPORTS",
+      "evidence_summary": "PRS's summary of the Public Accounts Committee report says about 45% of offset obligations remained unfulfilled as of 18 December 2025 and notes contract-management deficiencies."
+    },
+    {
+      "source_id": "SRC-F05-B",
+      "source_tier": "B",
+      "publisher": "BharatShakti",
+      "title": "Pending Rs 42,000-Crore Defence Offsets Trigger Scrutiny, Expert Says Concerns May Be Overstated",
+      "published_at": "2026-07-31",
+      "source_url": "https://bharatshakti.in/pending-rs-42000-crore-defence-offsets-trigger-scrutiny-expert-says-concerns-may-be-overstated/",
+      "role": "QUALIFIES",
+      "evidence_summary": "The article reports expert caution that the 45% figure covers ongoing obligations, some of which were not yet due; it says claims had been submitted against more than 82% of obligations that had actually fallen due by December 2025."
+    },
+    {
+      "source_id": "SRC-F05-C",
+      "source_tier": "A",
+      "publisher": "Lok Sabha / Ministry of Defence",
+      "title": "Unstarred Question No. 2823 — Offset Contracts",
+      "published_at": "2023-03-17",
+      "source_url": "https://sansad.in/getFile/loksabhaquestions/annex/1711/AU2823.pdf?source=pqals",
+      "role": "CONTEXT",
+      "evidence_summary": "An earlier official parliamentary answer separately reported total offset-contract value, claims submitted, and offset amounts due, illustrating that total obligations and amounts actually due are distinct categories."
+    }
+  ],
+  "research_summary": "The Public Accounts Committee summary supports the statement that roughly 45% of offset obligations remained unfulfilled in late 2025. However, describing the entire 45% as 'in default' overstates what that figure means because ongoing obligations can include future scheduled discharge. Reporting on the PAC data indicates that a much larger share of obligations that had actually fallen due already had claims submitted. The useful story is the distinction between unfulfilled total obligations and overdue/defaulted obligations.",
+  "locked_claims": [
+    {
+      "claim_id": "CLM-F05-1",
+      "text": "The PAC summary said about 45% of defence offset obligations remained unfulfilled as of December 2025.",
+      "display_value": "~45% unfulfilled"
+    },
+    {
+      "claim_id": "CLM-F05-2",
+      "text": "Unfulfilled total obligations are not necessarily equivalent to overdue/defaulted obligations.",
+      "display_value": "Unfulfilled ≠ automatically overdue"
+    },
+    {
+      "claim_id": "CLM-F05-3",
+      "text": "The PAC also identified contract-management and verification deficiencies.",
+      "display_value": "Management gaps flagged"
+    }
+  ],
+  "copy_format": "GM-CAROUSEL-01",
+  "gold": {
+    "verdict": "MISLEADING_WITHOUT_CONTEXT",
+    "material_caveats": [
+      "The 45% figure refers to unfulfilled obligations across ongoing offset contracts, not necessarily obligations already overdue.",
+      "The system should distinguish total outstanding obligations from obligations that had fallen due."
+    ],
+    "prohibited_claims": [
+      "45% of defence offset obligations had definitively defaulted.",
+      "45% of offset obligations were overdue.",
+      "45% of offset obligations were written off.",
+      "All unfulfilled obligations had already reached their contractual due date."
+    ],
+    "required_claim_ids_for_copy": [
+      "CLM-F05-1",
+      "CLM-F05-2",
+      "CLM-F05-3"
+    ]
+  }
+}

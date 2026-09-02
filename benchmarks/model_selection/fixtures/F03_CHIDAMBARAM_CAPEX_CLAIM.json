@@ -1,0 +1,93 @@
+{
+  "fixture_id": "F03_CHIDAMBARAM_CAPEX_CLAIM",
+  "title": "Political claim check: was Centre capital expenditure 'cut' in 2025-26?",
+  "fixture_family": "political_claim_check",
+  "risk_level": "MEDIUM",
+  "human_gold_status": "PROVISIONAL_REVIEW_REQUIRED",
+  "verification_claim": {
+    "claim_id": "CLM-F03-VERIFY",
+    "text": "The Centre cut capital expenditure in 2025-26, and Centre capex fell from 3.2% of GDP in 2024-25 to 3.1% in 2025-26.",
+    "claim_type": "political_numeric_claim"
+  },
+  "definitions": [
+    "A reduction from Budget Estimate (BE) to Revised Estimate (RE) is a cut relative to the original budget plan.",
+    "A year-on-year change compares one year's realised/revised level with the preceding year's level.",
+    "Nominal rupee expenditure and expenditure as a share of GDP can move in different directions."
+  ],
+  "evidence": [
+    {
+      "source_id": "SRC-F03-A",
+      "source_tier": "D",
+      "publisher": "Indian National Congress",
+      "title": "This is a budget without an economic strategy, an economic statesmanship",
+      "published_at": "2026-02",
+      "source_url": "https://inc.in/congress-sandesh/economy/this-is-a-budget-without-an-economic-strategy-an-economic-statesmanship",
+      "role": "ORIGINAL_STATEMENT",
+      "evidence_summary": "P. Chidambaram's published Congress commentary argues that 2025-26 capital expenditure was cut relative to the budget plan and that Centre capex fell from 3.2% to 3.1% of GDP."
+    },
+    {
+      "source_id": "SRC-F03-B",
+      "source_tier": "A",
+      "publisher": "Ministry of Finance, Government of India",
+      "title": "Budget at a Glance 2026-27 — Trend in Capital Expenditure",
+      "published_at": "2026-02-01",
+      "source_url": "https://www.indiabudget.gov.in/doc/Budget_at_Glance/budget_at_a_glance.pdf?hl=en-US",
+      "role": "QUALIFIES",
+      "evidence_summary": "The official chart shows Centre capital expenditure of about ₹10.5 lakh crore in 2024-25 and about ₹11.0 lakh crore in RE 2025-26. As a share of GDP, the chart shows 3.2% in 2024-25 and 3.1% in RE 2025-26."
+    },
+    {
+      "source_id": "SRC-F03-C",
+      "source_tier": "A",
+      "publisher": "Ministry of Finance, Government of India",
+      "title": "Budget at a Glance 2025-26",
+      "published_at": "2025-02-01",
+      "source_url": "https://www.indiabudget.gov.in/budget2025-26/doc/Budget_at_Glance/bag1.pdf",
+      "role": "SUPPORTS",
+      "evidence_summary": "The original BE 2025-26 placed total capital expenditure at ₹11.2109 lakh crore, which is above the later RE level of roughly ₹11.0 lakh crore."
+    }
+  ],
+  "research_summary": "The claim mixes two different comparisons. Relative to the original 2025-26 Budget Estimate, the later Revised Estimate is lower, so describing a cut versus the budget plan is supportable. However, nominal Centre capex still rose from about ₹10.5 lakh crore in 2024-25 to about ₹11.0 lakh crore in RE 2025-26. At the same time, capex as a share of GDP declined from 3.2% to 3.1%. Saying simply that 'capex fell' without specifying the comparison is therefore misleading.",
+  "locked_claims": [
+    {
+      "claim_id": "CLM-F03-1",
+      "text": "Centre capital expenditure was about ₹10.5 lakh crore in 2024-25.",
+      "display_value": "₹10.5 lakh crore"
+    },
+    {
+      "claim_id": "CLM-F03-2",
+      "text": "Centre capital expenditure was about ₹11.0 lakh crore in RE 2025-26.",
+      "display_value": "₹11.0 lakh crore"
+    },
+    {
+      "claim_id": "CLM-F03-3",
+      "text": "The original BE 2025-26 capital expenditure was ₹11.2109 lakh crore.",
+      "display_value": "₹11.21 lakh crore"
+    },
+    {
+      "claim_id": "CLM-F03-4",
+      "text": "Centre capex as a share of GDP moved from 3.2% in 2024-25 to 3.1% in RE 2025-26.",
+      "display_value": "3.2% → 3.1%"
+    }
+  ],
+  "copy_format": "GM-CAROUSEL-01",
+  "gold": {
+    "verdict": "MISLEADING_WITHOUT_CONTEXT",
+    "material_caveats": [
+      "The cut is relative to the original 2025-26 Budget Estimate, not a year-on-year fall in nominal rupee capital expenditure.",
+      "Nominal Centre capex rose year-on-year from about ₹10.5 lakh crore to about ₹11.0 lakh crore.",
+      "Capex as a share of GDP did decline from 3.2% to 3.1%."
+    ],
+    "prohibited_claims": [
+      "Centre capital expenditure fell in absolute rupee terms from 2024-25 to 2025-26.",
+      "There was no cut of any kind in 2025-26 capital expenditure.",
+      "The political claim is wholly false.",
+      "The political claim is wholly correct without qualification."
+    ],
+    "required_claim_ids_for_copy": [
+      "CLM-F03-1",
+      "CLM-F03-2",
+      "CLM-F03-3",
+      "CLM-F03-4"
+    ]
+  }
+}

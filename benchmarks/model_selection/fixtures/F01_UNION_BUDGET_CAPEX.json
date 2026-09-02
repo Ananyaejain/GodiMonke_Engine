@@ -1,0 +1,74 @@
+{
+  "fixture_id": "F01_UNION_BUDGET_CAPEX",
+  "title": "Union Budget 2026-27: capital expenditure vs effective capital expenditure",
+  "fixture_family": "union_budget_finance",
+  "risk_level": "LOW",
+  "human_gold_status": "PROVISIONAL_REVIEW_REQUIRED",
+  "verification_claim": {
+    "claim_id": "CLM-F01-VERIFY",
+    "text": "In Budget Estimates 2026-27, Union Government capital expenditure is ₹12.22 lakh crore, while effective capital expenditure is ₹17.15 lakh crore because grants for creation of capital assets are added to direct capital expenditure.",
+    "claim_type": "numeric_definition"
+  },
+  "definitions": [
+    "Budget Estimate (BE) is a budgeted projection, not actual realised expenditure.",
+    "Effective capital expenditure equals Union capital expenditure plus grants-in-aid for creation of capital assets."
+  ],
+  "evidence": [
+    {
+      "source_id": "SRC-F01-A",
+      "source_tier": "A",
+      "publisher": "Ministry of Finance, Government of India",
+      "title": "Statements of Fiscal Policy under the FRBM Act, Union Budget 2026-27",
+      "published_at": "2026-02-01",
+      "source_url": "https://www.indiabudget.gov.in/doc/frbm1.pdf",
+      "role": "SUPPORTS",
+      "evidence_summary": "The document projects ₹12.22 lakh crore of capital expenditure in BE 2026-27, including ₹2.0 lakh crore of capital support to states through SASCI."
+    },
+    {
+      "source_id": "SRC-F01-B",
+      "source_tier": "A",
+      "publisher": "Ministry of Finance, Government of India",
+      "title": "Statements of Fiscal Policy under the FRBM Act, Union Budget 2026-27",
+      "published_at": "2026-02-01",
+      "source_url": "https://www.indiabudget.gov.in/doc/frbm1.pdf",
+      "role": "SUPPORTS",
+      "evidence_summary": "The same document projects ₹4.93 lakh crore of grants-in-aid for creation of capital assets and ₹17.15 lakh crore of effective capital expenditure."
+    }
+  ],
+  "research_summary": "The Budget distinguishes direct Union capital expenditure from effective capital expenditure. BE 2026-27 direct capital expenditure is ₹12.22 lakh crore. Adding ₹4.93 lakh crore of grants for creation of capital assets produces effective capital expenditure of ₹17.15 lakh crore. These are budget estimates, not actual expenditure.",
+  "locked_claims": [
+    {
+      "claim_id": "CLM-F01-1",
+      "text": "Capital expenditure in BE 2026-27 is ₹12.22 lakh crore.",
+      "display_value": "₹12.22 lakh crore"
+    },
+    {
+      "claim_id": "CLM-F01-2",
+      "text": "Grants-in-aid for creation of capital assets in BE 2026-27 are ₹4.93 lakh crore.",
+      "display_value": "₹4.93 lakh crore"
+    },
+    {
+      "claim_id": "CLM-F01-3",
+      "text": "Effective capital expenditure in BE 2026-27 is ₹17.15 lakh crore.",
+      "display_value": "₹17.15 lakh crore"
+    }
+  ],
+  "copy_format": "GM-SINGLE-01",
+  "gold": {
+    "verdict": "SUPPORTED",
+    "material_caveats": [
+      "₹17.15 lakh crore is effective capital expenditure, not direct Union capital expenditure alone.",
+      "All three values are Budget Estimates for 2026-27, not actual realised expenditure."
+    ],
+    "prohibited_claims": [
+      "The Union Government will definitely spend ₹17.15 lakh crore directly as capital expenditure.",
+      "₹17.15 lakh crore is actual expenditure already incurred.",
+      "The ₹4.93 lakh crore grants are separate from effective capital expenditure rather than included within it."
+    ],
+    "required_claim_ids_for_copy": [
+      "CLM-F01-1",
+      "CLM-F01-2",
+      "CLM-F01-3"
+    ]
+  }
+}
