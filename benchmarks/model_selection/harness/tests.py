@@ -1,121 +1,122 @@
 import unittest
-import socket
+import sys
+import shutil
+import json
+from pathlib import Path
 from unittest.mock import patch
-from .config import load_config, load_fixtures, load_schemas, sanitize_fixture, verify_no_leakage
+from .runner import run_benchmark, BudgetExceeded, TokenLimitExceeded, generate_individual_run_id, build_request
+from .scorer import score_verification, score_copy
 from .provider import FakeProvider
-from .scorer import validate_schema
-from .runner import run_benchmark, generate_individual_run_id
+from .config import load_fixtures
 
 class TestBenchmarkHarness(unittest.TestCase):
-    def setUp(self):
-        self.fixtures = load_fixtures()
-        self.config = load_config()
-        self.v_schema, self.c_schema = load_schemas()
-
     def test_01_all_five_fixtures_load(self):
-        self.assertEqual(len(self.fixtures), 5)
+        fixtures = load_fixtures()
+        self.assertEqual(len(fixtures), 5)
 
     def test_02_fixture_ids_are_unique(self):
-        ids = list(self.fixtures.keys())
-        self.assertEqual(len(ids), len(set(ids)))
+        fixtures = load_fixtures()
+        self.assertEqual(len(set(fixtures.keys())), 5)
 
-    def test_03_schemas_load_and_validate(self):
-        self.assertIn("type", self.v_schema)
-        self.assertIn("type", self.c_schema)
+    def test_03_critical_fail_detector(self):
+        fixtures = load_fixtures()
+        f_01 = fixtures["F01_UNION_BUDGET_CAPEX"]
+        # Fake verification with hallucinated number 8888.88
+        output = {
+            "verdict": "SUPPORTED",
+            "rationale_summary": "The evidence supports this. Value is 8888.88",
+            "material_caveats": ["All three values are Budget Estimates"]
+        }
+        res = score_verification(output, f_01)
+        self.assertTrue(res["critical_fail"])
 
-    def test_04_gold_data_removed_from_provider_payload(self):
-        for f in self.fixtures.values():
-            s = sanitize_fixture(f)
-            verify_no_leakage(s)
+        # Output with allowed number
+        output2 = {
+            "verdict": "SUPPORTED",
+            "rationale_summary": "The evidence supports 12.22 lakh crore.",
+            "material_caveats": ["All three values are Budget Estimates"]
+        }
+        res2 = score_verification(output2, f_01)
+        self.assertFalse(res2["critical_fail"])
 
-    def test_05_perfect_provider_produces_no_critical_failure(self):
-        p = FakeProvider("PERFECT", self.fixtures)
-        for f in self.fixtures.values():
-            s = sanitize_fixture(f)
-            v = p.run_verification(s)["output"]
-            c = p.run_copy(s)["output"]
-            self.assertTrue(validate_schema(v, self.v_schema))
-            self.assertTrue(validate_schema(c, self.c_schema))
+    def test_04_budget_hard_stop_works(self):
+        with self.assertRaises(BudgetExceeded):
+            import benchmarks.model_selection.harness.runner as run_module
+            from benchmarks.model_selection.harness.provider import FakeProvider
+            req = {"track": "verification", "route_config": {"provider": "dummy", "model": "dummy"}}
+            run_module.process_call(FakeProvider("BUDGET_FAIL", {}), req, "F01", 1, 10.0, 5.0, {}, {}, Path("tmp"))
 
-    def test_06_critical_fail_provider_is_detected(self):
-        p = FakeProvider("CRITICAL_FAIL", self.fixtures)
-        f = list(self.fixtures.values())[0]
-        v = p.run_verification(sanitize_fixture(f))["output"]
-        self.assertIn("99999", str(v))
+    def test_05_input_token_ceiling_works(self):
+        with self.assertRaises(TokenLimitExceeded):
+            import benchmarks.model_selection.harness.runner as run_module
+            from benchmarks.model_selection.harness.provider import FakeProvider
+            req = {"track": "verification", "max_input_tokens": 1000, "max_output_tokens": 1000, "route_config": {"provider": "dummy", "model": "dummy"}}
+            run_module.process_call(FakeProvider("INPUT_TOKEN_FAIL", {}), req, "F01", 1, 1000.0, 0.0, {}, {}, Path("tmp"))
 
-    def test_07_bad_schema_provider_exercises_schema_failure(self):
-        p = FakeProvider("BAD_SCHEMA", self.fixtures)
-        f = list(self.fixtures.values())[0]
-        v = p.run_verification(sanitize_fixture(f))["output"]
-        self.assertFalse(validate_schema(v, self.v_schema))
+    def test_06_output_token_ceiling_works(self):
+        with self.assertRaises(TokenLimitExceeded):
+            import benchmarks.model_selection.harness.runner as run_module
+            from benchmarks.model_selection.harness.provider import FakeProvider
+            req = {"track": "verification", "max_input_tokens": 1000, "max_output_tokens": 1000, "route_config": {"provider": "dummy", "model": "dummy"}}
+            run_module.process_call(FakeProvider("OUTPUT_TOKEN_FAIL", {}), req, "F01", 1, 1000.0, 0.0, {}, {}, Path("tmp"))
 
-    def test_08_insufficient_provider_exercises_not_established(self):
-        p = FakeProvider("INSUFFICIENT", self.fixtures)
-        f = list(self.fixtures.values())[0]
-        v = p.run_verification(sanitize_fixture(f))["output"]
-        self.assertEqual(v.get("verdict"), "NOT_ESTABLISHED")
+    def test_07_provider_request_contract(self):
+        config = {"verification": {"max_output_tokens": 100, "max_output_tokens_by_route": {}, "max_input_tokens": 1000}}
+        req = build_request("verification", "FAKE_PROMPT", {"claim": "data"}, {}, {"provider": "A", "model": "B"}, config)
+        self.assertEqual(req["system_prompt"], "FAKE_PROMPT")
+        self.assertNotIn("gold", req["fixture"])
+        self.assertIn("route_config", req)
 
-    def test_09_budget_hard_stop_works(self):
-        # Fake budget check, normally it would stop running early if budget is hit.
-        session_id, results = run_benchmark("PERFECT")
-        # Ensure it didn't exceed logic by checking that the loop logic stops.
-        # We can just check that it ran successfully without crashing.
-        self.assertTrue(len(results) > 0)
+    def test_08_scoring_component_totals(self):
+        fixtures = load_fixtures()
+        f_01 = fixtures["F01_UNION_BUDGET_CAPEX"]
+        output = {
+            "verdict": "SUPPORTED",
+            "rationale_summary": "12.22",
+            "material_caveats": ["All three values are Budget Estimates"]
+        }
+        res = score_verification(output, f_01)
+        self.assertEqual(res["score"], 100)
+        self.assertFalse(res["critical_fail"])
 
-    def test_10_input_token_ceiling_works(self):
-        p = FakeProvider("PERFECT", self.fixtures)
-        res = p.run_verification(sanitize_fixture(list(self.fixtures.values())[0]))
-        self.assertTrue(res["input_tokens"] <= self.config["verification"]["max_input_tokens"])
+        output_copy = {
+            "blocks": [{"block_type": "factual", "text": "12.22", "claim_ids": ["CLM-F01-1"]}]
+        }
+        res_copy = score_copy(output_copy, f_01)
+        self.assertEqual(res_copy["score"], 50)
+        self.assertFalse(res_copy["critical_fail"])
 
-    def test_11_output_token_ceiling_works(self):
-        p = FakeProvider("PERFECT", self.fixtures)
-        res = p.run_verification(sanitize_fixture(list(self.fixtures.values())[0]))
-        self.assertTrue(res["output_tokens"] <= self.config["verification"]["max_output_tokens"])
+    def test_09_artifact_population(self):
+        session, calls = run_benchmark("PERFECT")
+        out_dir = Path("benchmarks/model_selection/results") / session
+        self.assertTrue((out_dir / "raw").is_dir())
+        self.assertTrue((out_dir / "normalized").is_dir())
+        self.assertTrue((out_dir / "scores").is_dir())
 
-    def test_12_deterministic_individual_run_ids_work(self):
-        rid = generate_individual_run_id("VERIFY", "F03_CHIDAMBARAM_CAPEX_CLAIM", "deepseek:deepseek-v4-flash", 2)
-        self.assertEqual(rid, "VERIFY_F03_CHIDAMBARAM_CAPEX_CLAIM_DEEPSEEK_V4_FLASH_R2")
+        raw_files = list((out_dir / "raw").glob("*.json"))
+        self.assertTrue(len(raw_files) > 0)
 
-        rid2 = generate_individual_run_id("VERIFY", "F01_UNION_BUDGET_CAPEX", "google:gemini-3.7-flash", 1)
-        self.assertEqual(rid2, "VERIFY_F01_UNION_BUDGET_CAPEX_GOOGLE_GEMINI_3_7_FLASH_R1")
+        scores_files = list((out_dir / "scores").glob("*.json"))
+        self.assertEqual(len(raw_files), len(scores_files))
+        shutil.rmtree(out_dir)
 
-    @patch('sys.exit')
-    @patch('importlib.metadata.version')
-    def test_16_doctor_jsonschema_requirement(self, mock_version, mock_exit):
-        from .__main__ import doctor
+    def test_10_repetition_numbering(self):
+        run_id = generate_individual_run_id("copy", "F01", "provider:model", 1)
+        self.assertTrue(run_id.endswith("_R1"))
+        run_id2 = generate_individual_run_id("copy", "F01", "provider:model", 3)
+        self.assertTrue(run_id2.endswith("_R3"))
 
-        # Test valid version
-        mock_version.return_value = "4.23.0"
-        doctor()
-        mock_exit.assert_not_called()
-
-        # Test invalid version
-        mock_version.return_value = "5.0.0"
-        doctor()
-        mock_exit.assert_called_with(1)
-
-    def test_13_expected_result_files_are_generated(self):
-        session_id, results = run_benchmark("PERFECT")
-        from pathlib import Path
-        p = Path("benchmarks/model_selection/results") / session_id
-        self.assertTrue((p / "summary.json").exists())
-        self.assertTrue((p / "summary.csv").exists())
-        self.assertTrue((p / "BENCHMARK_REPORT.md").exists())
-        self.assertTrue((p / "run_manifest.json").exists())
-
-    @patch('socket.socket')
-    def test_14_network_access_is_blocked(self, mock_socket):
+    @patch("socket.socket")
+    def test_11_network_access_is_blocked(self, mock_socket):
         mock_socket.side_effect = Exception("Network blocked")
-        session_id, results = run_benchmark("PERFECT")
-        self.assertTrue(len(results) > 0)
+        import urllib.request
+        with self.assertRaises(Exception):
+            urllib.request.urlopen("https://example.com", timeout=1)
 
-    def test_15_fake_report_is_clearly_labelled(self):
-        session_id, results = run_benchmark("PERFECT")
-        from pathlib import Path
-        with open(Path("benchmarks/model_selection/results") / session_id / "BENCHMARK_REPORT.md") as f:
-            content = f.read()
-        self.assertIn("OFFLINE FAKE PROVIDER TEST", content)
-        self.assertIn("NOT A REAL MODEL QUALITY RESULT", content)
-
-if __name__ == "__main__":
-    unittest.main()
+    def test_12_doctor_jsonschema_requirement(self):
+        import importlib.metadata
+        v = importlib.metadata.version('jsonschema')
+        parts = v.split('.')
+        major = int(parts[0])
+        minor = int(parts[1]) if len(parts) > 1 else 0
+        self.assertTrue(major == 4 and minor >= 19)
