@@ -5,133 +5,199 @@ import re
 def extract_numbers(text):
     if not isinstance(text, str):
         text = str(text)
-    # Extract numbers like 12.22, 12, 17.15, etc.
+    text = text.replace(",", "")
     return set(re.findall(r'\b\d+(?:\.\d+)?\b', text))
 
 def extract_quotes(text):
     if not isinstance(text, str):
         text = str(text)
-    return set(re.findall(r'"([^"]*)"', text)) + set(re.findall(r"'([^']*)'", text))
+    return set(re.findall(r'"([^"]*)"', text)) | set(re.findall(r"'([^']*)'", text))
 
-def score_verification(output, fixture):
+def extract_dates(text):
+    if not isinstance(text, str):
+        text = str(text)
+    return set(re.findall(r'\b\d{4}-\d{2,4}\b', text)) | set(re.findall(r'\b\d{4}\b', text))
+
+def normalize_caveat(text):
+    words = re.findall(r'\w+', str(text).lower())
+    return set(words)
+
+def score_verification(output, fixture, schema_valid):
     gold = fixture.get("gold", {})
-    score = 0
-    cf = False
 
-    # 1. Verdict correctness (30)
+    components = {
+        "verdict_correctness": 0,
+        "evidence_fidelity": 0,
+        "caveat_retention": 0,
+        "unsupported_assertion_discipline": 0,
+        "schema_compliance": 0,
+        "deterministic_total": 0,
+        "critical_fail": False
+    }
+
+    if not isinstance(output, dict):
+        components["critical_fail"] = True
+        return components
+
     verdict = output.get("verdict")
     gold_verdict = gold.get("verdict")
     if verdict == gold_verdict:
-        score += 30
+        components["verdict_correctness"] = 30
     elif verdict and gold_verdict and verdict in ["MOSTLY_SUPPORTED", "PARTLY_SUPPORTED"] and gold_verdict in ["MOSTLY_SUPPORTED", "PARTLY_SUPPORTED"]:
-        score += 15 # adjacent
+        components["verdict_correctness"] = 15
 
-    # 2. Evidence fidelity (25)
-    # Proxy: no invented numbers in rationale
-    rationale = output.get("rationale_summary", "")
+    rationale = str(output.get("rationale_summary", ""))
     output_nums = extract_numbers(rationale)
+    output_dates = extract_dates(rationale)
+    output_quotes = extract_quotes(rationale)
 
-    # gather allowed numbers from evidence
     allowed_nums = set()
+    allowed_dates = set()
+    allowed_quotes = set()
+    valid_source_ids = set()
+
     for ev in fixture.get("evidence", []):
-        allowed_nums.update(extract_numbers(ev.get("evidence_summary", "")))
-        allowed_nums.update(extract_numbers(ev.get("title", "")))
-        allowed_nums.update(extract_numbers(ev.get("published_at", "")))
-    allowed_nums.update(extract_numbers(fixture.get("verification_claim", {}).get("text", "")))
+        text_block = ev.get("evidence_summary", "") + " " + ev.get("title", "")
+        allowed_nums.update(extract_numbers(text_block))
+        allowed_dates.update(extract_dates(text_block))
+        allowed_quotes.update(extract_quotes(text_block))
+        valid_source_ids.add(ev.get("source_id"))
 
-    unsupported_nums = output_nums - allowed_nums
-    if unsupported_nums:
-        cf = True
+    v_claim = fixture.get("verification_claim", {}).get("text", "")
+    allowed_nums.update(extract_numbers(v_claim))
+    allowed_dates.update(extract_dates(v_claim))
+    allowed_quotes.update(extract_quotes(v_claim))
+
+    if (output_nums - allowed_nums) or (output_dates - allowed_dates) or (output_quotes - allowed_quotes):
+        components["critical_fail"] = True
     else:
-        score += 25
+        components["unsupported_assertion_discipline"] = 15
 
-    # 3. Caveat retention (20)
-    # Check if gold material caveats are present
+    ev_assmts = output.get("evidence_assessment", [])
+    has_invalid_source = False
+    for ea in ev_assmts:
+        sid = ea.get("source_id")
+        if sid not in valid_source_ids:
+            components["critical_fail"] = True
+            has_invalid_source = True
+
+    if not has_invalid_source and not components["critical_fail"]:
+        components["evidence_fidelity"] = 25
+
     gold_caveats = gold.get("material_caveats", [])
-    output_caveats = str(output.get("material_caveats", []))
-    caveats_kept = True
-    # For a deterministic check, we just check if some key words from gold caveats are in output caveats.
-    # To be simpler, we will give 20 if len(output_caveats) >= len(gold_caveats) unless it's empty.
-    if gold_caveats and not output.get("material_caveats"):
-        caveats_kept = False
-        cf = True
-    if caveats_kept:
-        score += 20
+    out_caveats = output.get("material_caveats", [])
+    if gold_caveats:
+        matched = 0
+        for gc in gold_caveats:
+            gc_set = normalize_caveat(gc)
+            if not gc_set:
+                continue
+            for oc in out_caveats:
+                oc_set = normalize_caveat(oc)
+                if len(gc_set & oc_set) >= max(1, len(gc_set)//3):
+                    matched += 1
+                    break
+        if matched == len(gold_caveats):
+            components["caveat_retention"] = 20
+        elif matched > 0:
+            components["caveat_retention"] = 10
+        else:
+            components["critical_fail"] = True
+    else:
+        components["caveat_retention"] = 20
 
-    # 4. Unsupported-assertion discipline (15)
-    # Already partially covered by cf, but we give 15 if not cf
-    if not cf:
-        score += 15
+    if schema_valid:
+        components["schema_compliance"] = 10
 
-    # 5. Schema compliance (10)
-    # Assuming passed if we reached here with a dict
-    score += 10
+    if components["critical_fail"]:
+        components["verdict_correctness"] = 0
+        components["evidence_fidelity"] = 0
+        components["caveat_retention"] = 0
+        components["unsupported_assertion_discipline"] = 0
+        if not schema_valid:
+            components["schema_compliance"] = 0
 
-    # Forced check for arbitrary hallucinated values in output
-    if "99999" in str(output):
-        cf = True
+    components["deterministic_total"] = sum(v for k, v in components.items() if k != "critical_fail" and k != "deterministic_total")
+    return components
 
-    if cf:
-        return {"score": 0, "critical_fail": True}
+def score_copy(output, fixture, schema_valid):
+    components = {
+        "factual_obedience": 0,
+        "concision_template_fit": 0,
+        "schema_compliance": 0,
+        "deterministic_subtotal": 0,
+        "clarity_information_hierarchy": "NEEDS_HUMAN_SCORE",
+        "godi_monke_voice": "NEEDS_HUMAN_SCORE",
+        "humour_hinglish": "NEEDS_HUMAN_SCORE",
+        "variation_non_generic": "NEEDS_HUMAN_SCORE",
+        "critical_fail": False
+    }
 
-    return {"score": score, "critical_fail": False}
+    if not isinstance(output, dict):
+        components["critical_fail"] = True
+        return components
 
-def score_copy(output, fixture):
     gold = fixture.get("gold", {})
-    score = 0
-    cf = False
-
-    # Allowed numbers from locked claims
     locked_claims = fixture.get("locked_claims", [])
+
     allowed_nums = set()
+    allowed_dates = set()
+    allowed_quotes = set()
     allowed_claim_ids = set()
+
     for lc in locked_claims:
-        allowed_nums.update(extract_numbers(lc.get("display_value", "")))
-        allowed_nums.update(extract_numbers(lc.get("text", "")))
+        text = lc.get("display_value", "") + " " + lc.get("text", "")
+        allowed_nums.update(extract_numbers(text))
+        allowed_dates.update(extract_dates(text))
+        allowed_quotes.update(extract_quotes(text))
         allowed_claim_ids.add(lc.get("claim_id"))
 
-    # Factual blocks checks
-    blocks = output.get("blocks", [])
-    for b in blocks:
-        text = str(b.get("text", "")) + str(b.get("heading", ""))
-        b_nums = extract_numbers(text)
+    def check_text(text):
+        if not text:
+            return False
+        if (extract_numbers(text) - allowed_nums) or (extract_dates(text) - allowed_dates) or (extract_quotes(text) - allowed_quotes):
+            return True
+        return False
 
-        # Numeric values in output not in locked input
-        if b_nums - allowed_nums:
-            cf = True
+    cf = False
 
-        # Factual blocks with no supporting claim ID where required
-        # Unsupported claim IDs
-        c_ids = b.get("claim_ids", [])
-        if b.get("block_type") == "factual" and not c_ids:
-            cf = True
-
-        for cid in c_ids:
-            if cid not in allowed_claim_ids:
-                cf = True
-
-    if "99999" in str(output):
+    if check_text(output.get("caption")):
         cf = True
 
+    slides = output.get("slides", [])
+    for slide in slides:
+        if check_text(slide.get("headline")):
+            cf = True
+
+        blocks = slide.get("body_blocks", [])
+        for b in blocks:
+            text = str(b.get("text", ""))
+            if check_text(text):
+                cf = True
+
+            c_ids = b.get("claim_ids", [])
+            if b.get("kind") == "FACT" and not c_ids:
+                cf = True
+
+            for cid in c_ids:
+                if cid not in allowed_claim_ids:
+                    cf = True
+
     if cf:
-        return {"score": 0, "critical_fail": True}
+        components["critical_fail"] = True
+        if schema_valid:
+            components["schema_compliance"] = 5
+        return components
 
-    # Deterministic components:
-    # factual obedience: 35
-    score += 35
-    # concision/template fit: 10
-    score += 10
-    # schema compliance: 5
-    score += 5
+    components["factual_obedience"] = 35
+    components["concision_template_fit"] = 10
 
-    return {
-        "score": score,
-        "critical_fail": False,
-        "humour_score": "NEEDS_HUMAN_SCORE",
-        "brand_score": "NEEDS_HUMAN_SCORE",
-        "clarity_score": "NEEDS_HUMAN_SCORE",
-        "variation_score": "NEEDS_HUMAN_SCORE"
-    }
+    if schema_valid:
+        components["schema_compliance"] = 5
+
+    components["deterministic_subtotal"] = components["factual_obedience"] + components["concision_template_fit"] + components["schema_compliance"]
+
+    return components
 
 def validate_schema(instance, schema):
     try:

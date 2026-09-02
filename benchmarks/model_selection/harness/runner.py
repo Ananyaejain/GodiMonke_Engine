@@ -42,14 +42,20 @@ def build_request(track, prompt, fixture, schema, model_cfg, config):
     }
 
 def process_call(provider, request, fixture_id, rep, budget, spent, config, fixture_gold, out_dir):
-    # Pre-flight cost estimation
-    est_cost = provider.estimate_cost(request, request["route_config"])
-    if spent + est_cost > budget:
-        raise BudgetExceeded(f"Projected cost {est_cost} exceeds remaining budget {budget - spent}")
+    est_in, max_out, est_cost_inr, est_cost_usd = provider.estimate_usage(request, request["route_config"])
+
+    if est_in > request["max_input_tokens"]:
+        raise TokenLimitExceeded(f"Estimated input tokens {est_in} > {request['max_input_tokens']}")
+
+    per_call_cap = config.get("smoke_test_call_cap_inr", 10.0)
+    if est_cost_inr > per_call_cap:
+        raise BudgetExceeded(f"Projected cost {est_cost_inr} exceeds per-call cap {per_call_cap}")
+
+    if spent + est_cost_inr > budget:
+        raise BudgetExceeded(f"Projected cost {est_cost_inr} exceeds remaining budget {budget - spent}")
 
     run_id = generate_individual_run_id(request["track"], fixture_id, f"{request['route_config']['provider']}:{request['route_config']['model']}", rep)
 
-    # Execute call
     start_time = time.time()
     if request["track"] == "verification":
         res = provider.run_verification(request, request["route_config"])
@@ -65,14 +71,16 @@ def process_call(provider, request, fixture_id, rep, budget, spent, config, fixt
     if res["output_tokens"] > request["max_output_tokens"]:
         raise TokenLimitExceeded(f"Output tokens {res['output_tokens']} > {request['max_output_tokens']}")
 
+    if spent > budget:
+        raise BudgetExceeded("Actual budget exceeded after call.")
+
     is_valid = validate_schema(res["output"], request["schema"])
 
     if request["track"] == "verification":
-        score_res = score_verification(res["output"], {"gold": fixture_gold, **request["fixture"]})
+        score_res = score_verification(res["output"], {"gold": fixture_gold, **request["fixture"]}, is_valid)
     else:
-        score_res = score_copy(res["output"], {"gold": fixture_gold, **request["fixture"]})
+        score_res = score_copy(res["output"], {"gold": fixture_gold, **request["fixture"]}, is_valid)
 
-    # Write artifacts
     with open(out_dir / "raw" / f"{run_id}.json", "w") as f:
         json.dump(res, f, indent=2)
     with open(out_dir / "normalized" / f"{run_id}.json", "w") as f:
@@ -89,7 +97,6 @@ def process_call(provider, request, fixture_id, rep, budget, spent, config, fixt
         "rep": rep,
         "valid": is_valid,
         "critical_fail": score_res["critical_fail"],
-        "score": score_res["score"],
         "input_tokens": res["input_tokens"],
         "output_tokens": res["output_tokens"],
         "cached_tokens": res.get("cached_tokens", 0),
@@ -98,6 +105,11 @@ def process_call(provider, request, fixture_id, rep, budget, spent, config, fixt
         "retry_count": res.get("retry_count", 0),
         "error_status": res.get("error_status", "OK")
     }
+    # Add score component based on track
+    if request["track"] == "verification":
+        summary["score"] = score_res.get("deterministic_total", 0)
+    else:
+        summary["score"] = score_res.get("deterministic_subtotal", 0)
 
     return summary, spent
 
@@ -132,12 +144,10 @@ def run_benchmark(mode="PERFECT"):
                     continue
 
                 for rep in range(1, config["repetitions"] + 1):
-                    # Verification Request
                     v_req = build_request("verification", v_prompt, sanitized, v_schema, model_cfg, config)
                     v_sum, spent = process_call(provider, v_req, fixture_id, rep, budget, spent, config, fixture_gold, out_dir)
                     task_calls.append(v_sum)
 
-                    # Copy Request
                     c_req = build_request("copy", c_prompt, sanitized, c_schema, model_cfg, config)
                     c_sum, spent = process_call(provider, c_req, fixture_id, rep, budget, spent, config, fixture_gold, out_dir)
                     task_calls.append(c_sum)
@@ -145,7 +155,6 @@ def run_benchmark(mode="PERFECT"):
         print(f"Benchmark stopped: {e}")
     except TokenLimitExceeded as e:
         print(f"Token limit exceeded: {e}")
-        # In tests, we want to catch this and assert it
         if "TOKEN_FAIL" in mode:
             raise e
 
@@ -166,6 +175,11 @@ def run_benchmark(mode="PERFECT"):
         f.write(f"\nTotal spent: {spent} INR\n")
         f.write(f"Logical fixture/model/repetition pairs: {logical_pairs}\n")
         f.write(f"Provider task calls (verification + copy): {len(task_calls)}\n")
+
+        sv_count = sum(1 for call in task_calls if call["valid"])
+        cf_count = sum(1 for call in task_calls if call["critical_fail"])
+        f.write(f"Schema-valid count: {sv_count}\n")
+        f.write(f"Critical-failure count: {cf_count}\n")
 
     with open(out_dir / "run_manifest.json", "w") as f:
         json.dump({"session_id": session_id, "mode": mode, "models": len(config["models"]), "spent": spent}, f)
