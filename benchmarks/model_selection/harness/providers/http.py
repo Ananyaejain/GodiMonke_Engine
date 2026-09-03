@@ -10,12 +10,25 @@ ALLOWED_HOSTS = [
 class SafeHTTPError(Exception):
     pass
 
+class MissingCredential(Exception):
+    pass
+
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        # Do not allow redirects at all
         raise SafeHTTPError(f"Redirects are disabled. Attempted redirect to {newurl}")
 
-def safe_post(url: str, payload: dict, headers: dict, timeout: int = 15, max_bytes: int = 10_000_000):
+def safe_post(url: str, payload: dict, headers: dict, timeout: int = 15, max_response_bytes: int = 10_000_000, max_request_bytes: int = 5_000_000):
+    def redact(text):
+        for k, v in headers.items():
+            k_lower = k.lower()
+            if 'key' in k_lower or 'authorization' in k_lower:
+                if v.startswith("Bearer "):
+                    token = v[7:]
+                    text = text.replace(token, "***")
+                else:
+                    text = text.replace(v, "***")
+        return text
+
     if not url.startswith("https://"):
         raise SafeHTTPError("HTTPS required.")
 
@@ -29,23 +42,32 @@ def safe_post(url: str, payload: dict, headers: dict, timeout: int = 15, max_byt
     req.add_header("Content-Type", "application/json")
     data = json.dumps(payload).encode("utf-8")
 
+    if len(data) > max_request_bytes:
+        raise SafeHTTPError("Request body exceeds maximum allowed size.")
+
     opener = urllib.request.build_opener(NoRedirectHandler())
-    
+
     try:
         with opener.open(req, data=data, timeout=timeout) as response:
-            # Enforce bounded response size
-            raw_body = response.read(max_bytes)
+            ctype = response.headers.get("Content-Type", "")
+            if not ctype.startswith("application/json"):
+                raise SafeHTTPError(f"Unexpected Content-Type: {ctype}")
+
+            raw_body = response.read(max_response_bytes)
             if response.read(1):
                 raise SafeHTTPError("Response exceeded maximum allowed size.")
-            
+
             return json.loads(raw_body.decode("utf-8"))
     except urllib.error.HTTPError as e:
-        raise SafeHTTPError(f"HTTP Error {e.code}: {e.reason}")
+        err_msg = redact(f"HTTP Error {e.code}: {e.reason}")
+        raise SafeHTTPError(err_msg)
     except urllib.error.URLError as e:
-        raise SafeHTTPError(f"URL Error: {e.reason}")
+        err_msg = redact(f"URL Error: {e.reason}")
+        raise SafeHTTPError(err_msg)
     except json.JSONDecodeError:
         raise SafeHTTPError("Response was not valid JSON.")
     except SafeHTTPError:
         raise
     except Exception as e:
-        raise SafeHTTPError("Unexpected HTTP error.")
+        err_msg = redact(f"Unexpected HTTP error.")
+        raise SafeHTTPError(err_msg)

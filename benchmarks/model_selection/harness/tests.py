@@ -270,15 +270,25 @@ class TestBenchmarkHarness(unittest.TestCase):
         rc = {}
         payload = p._generate_payload(req, rc)
         self.assertNotIn("gold", payload["contents"][0]["parts"][0]["text"])
+        self.assertEqual(payload["systemInstruction"]["parts"][0]["text"], "sys")
+        self.assertEqual(payload["generationConfig"]["thinkingConfig"]["thinkingLevel"], "medium")
+        self.assertNotIn("thinking", payload["generationConfig"])
+        self.assertNotIn("temperature", payload["generationConfig"])
 
     def test_33_deepseek_payload_no_gold(self):
         from .providers.deepseek import DeepSeekProvider
         from .config import sanitize_fixture
         p = DeepSeekProvider("DRY_RUN")
-        req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {}, "max_output_tokens": 100}
+        req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {"type": "object"}, "max_output_tokens": 100}
         rc = {}
         payload = p._generate_payload(req, rc)
         self.assertNotIn("gold", payload["input"])
+        self.assertEqual(payload["text"]["format"]["type"], "json_schema")
+        self.assertEqual(payload["text"]["format"]["name"], "verification_result")
+        self.assertEqual(payload["text"]["format"]["schema"], {"type": "object"})
+        self.assertNotIn("response_format", payload)
+        self.assertNotIn("temperature", payload)
+        self.assertNotIn("reasoning_effort", payload)
 
     def test_34_no_search_tools(self):
         from .providers.google import GoogleGeminiProvider
@@ -288,10 +298,10 @@ class TestBenchmarkHarness(unittest.TestCase):
         p2 = DeepSeekProvider("DRY_RUN")
         req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {}, "max_output_tokens": 100}
         rc = {}
-        
+
         payload1 = p1._generate_payload(req, rc)
         self.assertNotIn("tools", payload1)
-        
+
         payload2 = p2._generate_payload(req, rc)
         self.assertNotIn("tools", payload2)
         self.assertNotIn("web_search", payload2)
@@ -300,21 +310,20 @@ class TestBenchmarkHarness(unittest.TestCase):
         from .providers.google import GoogleGeminiProvider
         from .providers.deepseek import DeepSeekProvider
         from .config import sanitize_fixture
-        req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {}, "max_output_tokens": 100}
+        req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {"type": "object"}, "max_output_tokens": 100}
         rc = {}
-        
+
         g = GoogleGeminiProvider("DRY_RUN")
         pg = g._generate_payload(req, rc)
-        self.assertEqual(pg["generationConfig"]["thinkingConfig"]["thinking"], "MEDIUM")
-        
+        self.assertEqual(pg["generationConfig"]["thinkingConfig"]["thinkingLevel"], "medium")
+
         d1 = DeepSeekProvider("DRY_RUN", "deepseek-v4-flash")
         pd1 = d1._generate_payload(req, rc)
-        self.assertEqual(pd1["reasoning_effort"], "low")
-        self.assertNotIn("temperature", pd1)
-        
+        self.assertEqual(pd1["reasoning"]["effort"], "low")
+
         d2 = DeepSeekProvider("DRY_RUN", "deepseek-v4-pro")
         pd2 = d2._generate_payload(req, rc)
-        self.assertEqual(pd2["reasoning_effort"], "high")
+        self.assertEqual(pd2["reasoning"]["effort"], "high")
 
     def test_36_schema_sent(self):
         from .providers.google import GoogleGeminiProvider
@@ -322,65 +331,80 @@ class TestBenchmarkHarness(unittest.TestCase):
         from .config import sanitize_fixture
         req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {"type": "object"}, "max_output_tokens": 100}
         rc = {}
-        
+
         g = GoogleGeminiProvider("DRY_RUN")
         pg = g._generate_payload(req, rc)
         self.assertEqual(pg["generationConfig"]["responseSchema"], {"type": "object"})
-        
+
         d = DeepSeekProvider("DRY_RUN")
         pd = d._generate_payload(req, rc)
-        self.assertEqual(pd["response_format"]["schema"], {"type": "object"})
+        self.assertEqual(pd["text"]["format"]["schema"], {"type": "object"})
 
     def test_37_38_39_http_safety(self):
         from .providers.http import safe_post, SafeHTTPError
-        # Test missing host
+        from unittest.mock import patch
+        import urllib.error
+
+        # Test missing host in allowlist
         with self.assertRaises(SafeHTTPError) as cm:
             safe_post("https://evil.com", {}, {})
         self.assertIn("not in allowlist", str(cm.exception))
-        
-        # Test HTTP not HTTPS
-        with self.assertRaises(SafeHTTPError) as cm2:
-            safe_post("http://api.deepseek.com", {}, {})
-        self.assertIn("HTTPS required", str(cm2.exception))
+
+        # Test redaction on URLError/HTTPError
+        with patch('urllib.request.build_opener') as mock_opener:
+            mock_open = mock_opener.return_value.open
+            mock_open.side_effect = urllib.error.URLError("Failed to connect with secret SECRETDATA123")
+
+            with self.assertRaises(SafeHTTPError) as cm_redact:
+                safe_post("https://api.deepseek.com", {}, {"Authorization": "Bearer SECRETDATA123"})
+            self.assertIn("***", str(cm_redact.exception))
+            self.assertNotIn("SECRETDATA123", str(cm_redact.exception))
+
+        # test too large request
+        with self.assertRaises(SafeHTTPError) as cm_size:
+            safe_post("https://api.deepseek.com", {"k": "v"*6000000}, {})
+        self.assertIn("exceeds maximum allowed size", str(cm_size.exception))
 
     def test_40_usage_accounting(self):
         from .providers.google import GoogleGeminiProvider
         from .providers.deepseek import DeepSeekProvider
-        
+
         g = GoogleGeminiProvider("DRY_RUN")
         g_mock_resp = {
-            "candidates": [{"content": {"res": "ok"}}],
+            "candidates": [{"content": {"parts": [{"text": "{\"verdict\": \"ok\"}"}]}}],
             "usageMetadata": {
-                "promptTokenCount": 10,
-                "candidatesTokenCount": 20,
-                "thoughtsTokenCount": 5,
+                "promptTokenCount": 100,
+                "candidatesTokenCount": 50,
+                "thoughtsTokenCount": 25,
                 "cachedContentTokenCount": 0
             }
         }
         res_g = g.parse_response(g_mock_resp)
-        self.assertEqual(res_g["usage"]["billed_output_tokens"], 25) # 20 + 5
-        self.assertEqual(res_g["usage"]["reasoning_tokens"], 5)
-        
+        self.assertEqual(res_g["usage"]["billed_output_tokens"], 75)
+        self.assertEqual(res_g["usage"]["reasoning_tokens"], 25)
+
         d = DeepSeekProvider("DRY_RUN")
         d_mock_resp = {
-            "choices": [{"message": {"content": {"res": "ok"}}}],
+            "output": [
+                {"type": "reasoning", "content": [{"type": "text", "text": "thought"}]},
+                {"type": "message", "content": [{"type": "output_text", "text": "{\"verdict\": \"ok\"}"}]}
+            ],
             "usage": {
                 "input_tokens": 10,
-                "output_tokens": 30, # reasoning is already included
-                "input_tokens_details": {"cached_tokens": 0},
-                "output_tokens_details": {"reasoning_tokens": 10}
+                "output_tokens": 75,
+                "output_tokens_details": {"reasoning_tokens": 25}
             }
         }
         res_d = d.parse_response(d_mock_resp)
-        self.assertEqual(res_d["usage"]["billed_output_tokens"], 30)
-        self.assertEqual(res_d["usage"]["reasoning_tokens"], 10)
+        self.assertEqual(res_d["usage"]["billed_output_tokens"], 75)
+        self.assertEqual(res_d["usage"]["reasoning_tokens"], 25)
 
     def test_41_peak_pricing_preflight(self):
         from .providers.pricing import calculate_cost_usd
         # Flash: 0.44 input, 1.32 output
         c = calculate_cost_usd("deepseek:deepseek-v4-flash", 1000000, 1000000)
         self.assertAlmostEqual(c, 1.76) # 0.44 + 1.32
-        
+
         c2 = calculate_cost_usd("deepseek:deepseek-v4-pro", 1000000, 1000000)
         self.assertAlmostEqual(c2, 5.28) # 1.32 + 3.96
 
@@ -403,3 +427,28 @@ class TestBenchmarkHarness(unittest.TestCase):
         from .runner import run_smoke
         calls = run_smoke(dry_run=True)
         self.assertEqual(len(calls), 3)
+
+    def test_46_missing_credential(self):
+        from .providers.google import GoogleGeminiProvider
+        from .providers.deepseek import DeepSeekProvider
+        from .providers.http import MissingCredential
+        import os
+
+        if "GEMINI_API_KEY" in os.environ:
+            del os.environ["GEMINI_API_KEY"]
+        if "DEEPSEEK_API_KEY" in os.environ:
+            del os.environ["DEEPSEEK_API_KEY"]
+
+        with self.assertRaises(MissingCredential):
+            GoogleGeminiProvider("DRY_RUN").get_headers()
+
+        with self.assertRaises(MissingCredential):
+            DeepSeekProvider("DRY_RUN").get_headers()
+
+        os.environ["GEMINI_API_KEY"] = "gem_test"
+        h_gem = GoogleGeminiProvider("DRY_RUN").get_headers()
+        self.assertEqual(h_gem["x-goog-api-key"], "gem_test")
+
+        os.environ["DEEPSEEK_API_KEY"] = "ds_test"
+        h_ds = DeepSeekProvider("DRY_RUN").get_headers()
+        self.assertEqual(h_ds["Authorization"], "Bearer ds_test")

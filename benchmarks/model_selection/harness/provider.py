@@ -1,3 +1,12 @@
+from dataclasses import dataclass
+
+@dataclass
+class UsageEstimate:
+    estimated_input_tokens: int
+    max_output_tokens: int
+    estimated_cost_usd: float
+    estimated_cost_inr: float
+
 import json
 
 SOURCE_ROLE_MAPPING = {
@@ -24,10 +33,10 @@ class FakeProvider(BenchmarkProvider):
 
     def estimate_usage(self, request, route_config):
         if self.mode == "BUDGET_FAIL":
-            return (500, request["max_output_tokens"], 99999.0, 1000.0)
+            return UsageEstimate(500, request["max_output_tokens"], 1000.0, 99999.0)
         elif self.mode == "INPUT_TOKEN_FAIL":
-            return (999999, request["max_output_tokens"], 0.1, 0.001)
-        return (500, request["max_output_tokens"], 0.1, 0.001)
+            return UsageEstimate(999999, request["max_output_tokens"], 0.001, 0.1)
+        return UsageEstimate(500, request["max_output_tokens"], 0.001, 0.1)
 
     def _get_base_tokens(self, request):
         if self.mode == "OUTPUT_TOKEN_FAIL":
