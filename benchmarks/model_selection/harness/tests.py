@@ -334,7 +334,9 @@ class TestBenchmarkHarness(unittest.TestCase):
 
         g = GoogleGeminiProvider("DRY_RUN")
         pg = g._generate_payload(req, rc)
-        self.assertEqual(pg["generationConfig"]["responseSchema"], {"type": "object"})
+        self.assertIn("responseJsonSchema", pg["generationConfig"])
+        self.assertNotIn("responseSchema", pg["generationConfig"])
+        self.assertEqual(pg["generationConfig"]["responseJsonSchema"], {"type": "object"})
 
         d = DeepSeekProvider("DRY_RUN")
         pd = d._generate_payload(req, rc)
@@ -371,7 +373,7 @@ class TestBenchmarkHarness(unittest.TestCase):
 
         g = GoogleGeminiProvider("DRY_RUN")
         g_mock_resp = {
-            "candidates": [{"content": {"parts": [{"text": "{\"verdict\": \"ok\"}"}]}}],
+            "candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": "{\"verdict\": \"ok\"}"}]}}],
             "usageMetadata": {
                 "promptTokenCount": 100,
                 "candidatesTokenCount": 50,
@@ -385,6 +387,7 @@ class TestBenchmarkHarness(unittest.TestCase):
 
         d = DeepSeekProvider("DRY_RUN")
         d_mock_resp = {
+            "status": "completed",
             "output": [
                 {"type": "reasoning", "content": [{"type": "text", "text": "thought"}]},
                 {"type": "message", "content": [{"type": "output_text", "text": "{\"verdict\": \"ok\"}"}]}
@@ -484,7 +487,8 @@ class TestBenchmarkHarness(unittest.TestCase):
 
         p = GoogleGeminiProvider("DRY_RUN")
         payload = p._generate_payload(req, {})
-        gemini_schema = payload["generationConfig"]["responseSchema"]
+        gemini_schema = payload["generationConfig"]["responseJsonSchema"]
+        self.assertNotIn("responseSchema", payload["generationConfig"])
 
         # Verify original intact
         self.assertIn("maxLength", req["schema"]["properties"]["name"])
@@ -530,6 +534,23 @@ class TestBenchmarkHarness(unittest.TestCase):
         self.assertIn("SAFETY", str(cm2.exception))
         self.assertNotIn("SECRET", str(cm2.exception))
 
+
+        # Missing rejected
+        miss_resp = {
+            "candidates": [{"content": {"parts": [{"text": '{"ok": 1}'}]}}]
+        }
+        with self.assertRaises(ProviderIncompleteResponse) as cm_m:
+            p.parse_response(miss_resp)
+        self.assertIn("None", str(cm_m.exception))
+
+        # Null rejected
+        null_resp = {
+            "candidates": [{"finishReason": None, "content": {"parts": [{"text": '{"ok": 1}'}]}}]
+        }
+        with self.assertRaises(ProviderIncompleteResponse) as cm_n:
+            p.parse_response(null_resp)
+        self.assertIn("None", str(cm_n.exception))
+
     def test_49_deepseek_completion(self):
         from .providers.deepseek import DeepSeekProvider
         from .provider import ProviderIncompleteResponse
@@ -567,6 +588,33 @@ class TestBenchmarkHarness(unittest.TestCase):
             p.parse_response(fail_resp)
         self.assertIn("failed", str(cm2.exception))
         self.assertIn("content_filter", str(cm2.exception))
+
+
+        # In progress rejected
+        ip_resp = {
+            "status": "in_progress",
+            "output": []
+        }
+        with self.assertRaises(ProviderIncompleteResponse) as cm_ip:
+            p.parse_response(ip_resp)
+        self.assertIn("in_progress", str(cm_ip.exception))
+
+        # Missing rejected
+        miss_resp_d = {
+            "output": []
+        }
+        with self.assertRaises(ProviderIncompleteResponse) as cm_md:
+            p.parse_response(miss_resp_d)
+        self.assertIn("None", str(cm_md.exception))
+
+        # Null rejected
+        null_resp_d = {
+            "status": None,
+            "output": []
+        }
+        with self.assertRaises(ProviderIncompleteResponse) as cm_nd:
+            p.parse_response(null_resp_d)
+        self.assertIn("None", str(cm_nd.exception))
 
     def test_50_deepseek_final_message_and_reasoning(self):
         from .providers.deepseek import DeepSeekProvider

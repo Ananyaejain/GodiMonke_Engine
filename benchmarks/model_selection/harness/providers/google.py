@@ -68,7 +68,7 @@ class GoogleGeminiProvider(BenchmarkProvider):
             }],
             "generationConfig": {
                 "responseMimeType": "application/json",
-                "responseSchema": _project_gemini_schema(request["schema"]),
+                "responseJsonSchema": _project_gemini_schema(request["schema"]),
                 "maxOutputTokens": request["max_output_tokens"],
                 "thinkingConfig": {
                     "thinkingLevel": "medium"
@@ -113,7 +113,7 @@ class GoogleGeminiProvider(BenchmarkProvider):
             raise ValueError("Provider normalization error: No candidates returned")
         candidate = response_json["candidates"][0]
         finish_reason = candidate.get("finishReason")
-        if finish_reason and finish_reason != "STOP":
+        if finish_reason != "STOP":
             raise ProviderIncompleteResponse(f"Gemini incomplete response. Reason: {finish_reason}")
 
         try:

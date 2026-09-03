@@ -76,7 +76,7 @@ class DeepSeekProvider(BenchmarkProvider):
 
     def parse_response(self, response_json):
         status = response_json.get("status")
-        if status and status != "completed":
+        if status != "completed":
             reason = response_json.get("incomplete_details", {}).get("reason", "unknown")
             raise ProviderIncompleteResponse(f"DeepSeek incomplete response. Status: {status}, Reason: {reason}")
 
