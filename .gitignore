@@ -12,3 +12,7 @@ logs/*
 data/cache/*
 *.sqlite3
 *.db
+
+# Secret hygiene
+.env.*
+!.env.example

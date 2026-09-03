@@ -199,3 +199,91 @@ def run_benchmark(mode="PERFECT"):
         json.dump({"session_id": session_id, "mode": mode, "models": len(config["models"]), "spent": spent}, f)
 
     return session_id, task_calls
+
+def run_live_doctor():
+    import os
+    from .config import load_config, load_fixtures, load_schemas, load_prompts
+    
+    config = load_config()
+    
+    from .providers.pricing import PRICING_CATALOG
+    assert isinstance(PRICING_CATALOG, dict)
+    
+    fixtures = load_fixtures()
+    assert "F03_CHIDAMBARAM_CAPEX_CLAIM" in fixtures
+    
+    v_schema, c_schema = load_schemas()
+    assert v_schema
+    
+    v_prompt, c_prompt = load_prompts()
+    assert v_prompt
+    
+    assert "google:gemini-3.7-flash" in PRICING_CATALOG
+    assert "deepseek:deepseek-v4-flash" in PRICING_CATALOG
+    assert "deepseek:deepseek-v4-pro" in PRICING_CATALOG
+    
+    assert config["smoke_test_global_cap_inr"] == 10
+    assert config["per_call_hard_cap_inr"] == 5
+    
+    print("GEMINI_API_KEY: " + ("SET" if os.environ.get("GEMINI_API_KEY") else "NOT SET"))
+    print("DEEPSEEK_API_KEY: " + ("SET" if os.environ.get("DEEPSEEK_API_KEY") else "NOT SET"))
+
+def run_smoke(dry_run=False):
+    if not dry_run:
+        raise Exception("Live execution is impossible in B2A")
+        
+    from .config import load_config, load_fixtures, load_schemas, load_prompts, sanitize_fixture
+    from .providers.google import GoogleGeminiProvider
+    from .providers.deepseek import DeepSeekProvider
+    
+    config = load_config()
+    fixtures = load_fixtures()
+    v_schema, c_schema = load_schemas()
+    v_prompt, c_prompt = load_prompts()
+    
+    f03 = fixtures["F03_CHIDAMBARAM_CAPEX_CLAIM"]
+    sanitized = sanitize_fixture(f03)
+    
+    routes = [
+        ("google", "gemini-3.7-flash"),
+        ("deepseek", "deepseek-v4-flash"),
+        ("deepseek", "deepseek-v4-pro")
+    ]
+    
+    budget = config["smoke_test_global_cap_inr"]
+    per_call_cap = config["per_call_hard_cap_inr"]
+    spent = 0.0
+    calls = []
+    
+    for provider_name, model in routes:
+        if provider_name == "google":
+            provider = GoogleGeminiProvider("DRY_RUN", model)
+            thinking = "MEDIUM"
+        else:
+            provider = DeepSeekProvider("DRY_RUN", model)
+            thinking = "LOW" if "flash" in model else "HIGH"
+            
+        req = build_request("verification", v_prompt, sanitized, v_schema, 
+                            {"provider": provider_name, "model": model}, config)
+                            
+        est_usage = provider.estimate_usage(req, req["route_config"])
+        est_usd = est_usage[2]
+        est_inr = est_usage[3]
+        
+        print(f"Fixture: F03_CHIDAMBARAM_CAPEX_CLAIM")
+        print(f"Provider: {provider_name}")
+        print(f"Model: {model}")
+        print(f"Thinking: {thinking}")
+        print(f"Estimated Input Tokens: {est_usage[0]}")
+        print(f"Configured Max Output Tokens: {est_usage[1]}")
+        print(f"Conservative Projected USD Cost: ${est_usd:.3f}")
+        print(f"Conservative Projected INR Cost: ₹{est_inr:.2f}")
+        print(f"Per-call Cap: ₹{per_call_cap}")
+        print(f"Remaining Smoke Budget: ₹{budget - spent:.2f}")
+        print("---")
+        
+        # In dry run, we accumulate conservative cost to spent
+        spent += est_inr
+        calls.append(req)
+        
+    return calls

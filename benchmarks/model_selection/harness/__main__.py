@@ -4,11 +4,6 @@ from pathlib import Path
 import argparse
 
 def doctor():
-    req_file = Path("benchmarks/model_selection/requirements-benchmark.txt")
-    if req_file.exists():
-        with open(req_file) as f:
-            reqs = f.read()
-
     try:
         jsonschema_ver = importlib.metadata.version("jsonschema")
         print(f"jsonschema version: {jsonschema_ver}")
@@ -26,9 +21,10 @@ def doctor():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["doctor", "run"])
+    parser.add_argument("command", choices=["doctor", "run", "live-doctor", "smoke"])
     parser.add_argument("--fake", action="store_true")
     parser.add_argument("--fake-mode", default="PERFECT")
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
     if args.command == "doctor":
@@ -41,6 +37,15 @@ def main():
         else:
             print("Real API runs not permitted in this milestone.")
             sys.exit(1)
+    elif args.command == "live-doctor":
+        from .runner import run_live_doctor
+        run_live_doctor()
+    elif args.command == "smoke":
+        if not args.dry_run:
+            print("ERROR: live execution disabled in B2A")
+            sys.exit(1)
+        from .runner import run_smoke
+        run_smoke(dry_run=True)
 
 if __name__ == "__main__":
     main()

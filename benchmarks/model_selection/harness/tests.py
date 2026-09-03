@@ -261,3 +261,145 @@ class TestBenchmarkHarness(unittest.TestCase):
         sig_c = inspect.signature(score_copy)
         self.assertIn("visible_fixture", sig_c.parameters)
         self.assertIn("gold", sig_c.parameters)
+
+    def test_32_google_payload_no_gold(self):
+        from .providers.google import GoogleGeminiProvider
+        from .config import sanitize_fixture
+        p = GoogleGeminiProvider("DRY_RUN")
+        req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {}, "max_output_tokens": 100}
+        rc = {}
+        payload = p._generate_payload(req, rc)
+        self.assertNotIn("gold", payload["contents"][0]["parts"][0]["text"])
+
+    def test_33_deepseek_payload_no_gold(self):
+        from .providers.deepseek import DeepSeekProvider
+        from .config import sanitize_fixture
+        p = DeepSeekProvider("DRY_RUN")
+        req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {}, "max_output_tokens": 100}
+        rc = {}
+        payload = p._generate_payload(req, rc)
+        self.assertNotIn("gold", payload["input"])
+
+    def test_34_no_search_tools(self):
+        from .providers.google import GoogleGeminiProvider
+        from .providers.deepseek import DeepSeekProvider
+        from .config import sanitize_fixture
+        p1 = GoogleGeminiProvider("DRY_RUN")
+        p2 = DeepSeekProvider("DRY_RUN")
+        req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {}, "max_output_tokens": 100}
+        rc = {}
+        
+        payload1 = p1._generate_payload(req, rc)
+        self.assertNotIn("tools", payload1)
+        
+        payload2 = p2._generate_payload(req, rc)
+        self.assertNotIn("tools", payload2)
+        self.assertNotIn("web_search", payload2)
+
+    def test_35_thinking_reasoning_levels(self):
+        from .providers.google import GoogleGeminiProvider
+        from .providers.deepseek import DeepSeekProvider
+        from .config import sanitize_fixture
+        req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {}, "max_output_tokens": 100}
+        rc = {}
+        
+        g = GoogleGeminiProvider("DRY_RUN")
+        pg = g._generate_payload(req, rc)
+        self.assertEqual(pg["generationConfig"]["thinkingConfig"]["thinking"], "MEDIUM")
+        
+        d1 = DeepSeekProvider("DRY_RUN", "deepseek-v4-flash")
+        pd1 = d1._generate_payload(req, rc)
+        self.assertEqual(pd1["reasoning_effort"], "low")
+        self.assertNotIn("temperature", pd1)
+        
+        d2 = DeepSeekProvider("DRY_RUN", "deepseek-v4-pro")
+        pd2 = d2._generate_payload(req, rc)
+        self.assertEqual(pd2["reasoning_effort"], "high")
+
+    def test_36_schema_sent(self):
+        from .providers.google import GoogleGeminiProvider
+        from .providers.deepseek import DeepSeekProvider
+        from .config import sanitize_fixture
+        req = {"system_prompt": "sys", "fixture": sanitize_fixture(self.f_01), "schema": {"type": "object"}, "max_output_tokens": 100}
+        rc = {}
+        
+        g = GoogleGeminiProvider("DRY_RUN")
+        pg = g._generate_payload(req, rc)
+        self.assertEqual(pg["generationConfig"]["responseSchema"], {"type": "object"})
+        
+        d = DeepSeekProvider("DRY_RUN")
+        pd = d._generate_payload(req, rc)
+        self.assertEqual(pd["response_format"]["schema"], {"type": "object"})
+
+    def test_37_38_39_http_safety(self):
+        from .providers.http import safe_post, SafeHTTPError
+        # Test missing host
+        with self.assertRaises(SafeHTTPError) as cm:
+            safe_post("https://evil.com", {}, {})
+        self.assertIn("not in allowlist", str(cm.exception))
+        
+        # Test HTTP not HTTPS
+        with self.assertRaises(SafeHTTPError) as cm2:
+            safe_post("http://api.deepseek.com", {}, {})
+        self.assertIn("HTTPS required", str(cm2.exception))
+
+    def test_40_usage_accounting(self):
+        from .providers.google import GoogleGeminiProvider
+        from .providers.deepseek import DeepSeekProvider
+        
+        g = GoogleGeminiProvider("DRY_RUN")
+        g_mock_resp = {
+            "candidates": [{"content": {"res": "ok"}}],
+            "usageMetadata": {
+                "promptTokenCount": 10,
+                "candidatesTokenCount": 20,
+                "thoughtsTokenCount": 5,
+                "cachedContentTokenCount": 0
+            }
+        }
+        res_g = g.parse_response(g_mock_resp)
+        self.assertEqual(res_g["usage"]["billed_output_tokens"], 25) # 20 + 5
+        self.assertEqual(res_g["usage"]["reasoning_tokens"], 5)
+        
+        d = DeepSeekProvider("DRY_RUN")
+        d_mock_resp = {
+            "choices": [{"message": {"content": {"res": "ok"}}}],
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 30, # reasoning is already included
+                "input_tokens_details": {"cached_tokens": 0},
+                "output_tokens_details": {"reasoning_tokens": 10}
+            }
+        }
+        res_d = d.parse_response(d_mock_resp)
+        self.assertEqual(res_d["usage"]["billed_output_tokens"], 30)
+        self.assertEqual(res_d["usage"]["reasoning_tokens"], 10)
+
+    def test_41_peak_pricing_preflight(self):
+        from .providers.pricing import calculate_cost_usd
+        # Flash: 0.44 input, 1.32 output
+        c = calculate_cost_usd("deepseek:deepseek-v4-flash", 1000000, 1000000)
+        self.assertAlmostEqual(c, 1.76) # 0.44 + 1.32
+        
+        c2 = calculate_cost_usd("deepseek:deepseek-v4-pro", 1000000, 1000000)
+        self.assertAlmostEqual(c2, 5.28) # 1.32 + 3.96
+
+    def test_42_local_token_estimator(self):
+        from .providers.pricing import estimate_tokens
+        text = "Hello world" # 11 chars
+        self.assertEqual(estimate_tokens(text), 3) # 11 // 3
+
+    def test_43_44_dry_run_invariant(self):
+        from .runner import run_smoke
+        calls = run_smoke(dry_run=True)
+        self.assertEqual(len(calls), 3)
+        for c in calls:
+            self.assertEqual(c["track"], "verification")
+            self.assertEqual(c["fixture"]["verification_claim"]["claim_id"], "CLM-F03-VERIFY")
+
+    @patch("socket.socket")
+    def test_45_network_block_live(self, mock_socket):
+        # We explicitly block the socket but run_smoke dry run should still succeed because it doesn't use the network
+        from .runner import run_smoke
+        calls = run_smoke(dry_run=True)
+        self.assertEqual(len(calls), 3)
