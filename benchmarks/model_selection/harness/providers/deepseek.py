@@ -2,7 +2,7 @@ import json
 import os
 from .http import safe_post, MissingCredential
 from .pricing import estimate_tokens, calculate_cost_usd, USD_INR_BUDGET_RATE
-from ..provider import BenchmarkProvider, UsageEstimate
+from ..provider import BenchmarkProvider, UsageEstimate, ProviderIncompleteResponse
 
 class DeepSeekProvider(BenchmarkProvider):
     def __init__(self, mode, model="deepseek-v4-flash"):
@@ -75,12 +75,18 @@ class DeepSeekProvider(BenchmarkProvider):
         raise NotImplementedError("Live execution is explicitly disabled in B2A")
 
     def parse_response(self, response_json):
+        status = response_json.get("status")
+        if status and status != "completed":
+            reason = response_json.get("incomplete_details", {}).get("reason", "unknown")
+            raise ProviderIncompleteResponse(f"DeepSeek incomplete response. Status: {status}, Reason: {reason}")
+
         try:
             outputs = response_json["output"]
             messages = [o for o in outputs if o.get("type") == "message"]
             if not messages:
                 raise ValueError("No message block found")
-            content = messages[0].get("content", [])
+            final_message = messages[-1]
+            content = final_message.get("content", [])
             output_texts = [c for c in content if c.get("type") == "output_text"]
             if not output_texts:
                 raise ValueError("No output_text block found")

@@ -2,7 +2,42 @@ import json
 import os
 from .http import safe_post, MissingCredential
 from .pricing import estimate_tokens, calculate_cost_usd, USD_INR_BUDGET_RATE
-from ..provider import BenchmarkProvider, UsageEstimate
+from ..provider import BenchmarkProvider, UsageEstimate, ProviderIncompleteResponse
+
+
+GEMINI_SUPPORTED_SCHEMA_KEYS = {
+    "type", "format", "title", "description", "enum", "items", "prefixItems",
+    "minItems", "maxItems", "minimum", "maximum", "anyOf", "oneOf",
+    "properties", "additionalProperties", "required", "$id", "$defs",
+    "$ref", "$anchor", "propertyOrdering"
+}
+
+import copy
+
+def _project_gemini_schema(schema):
+    if not isinstance(schema, dict):
+        return schema
+
+    projected = {}
+    for k, v in schema.items():
+        if k not in GEMINI_SUPPORTED_SCHEMA_KEYS:
+            continue
+
+        if k in ("properties", "$defs"):
+            if isinstance(v, dict):
+                projected[k] = {prop_name: _project_gemini_schema(prop_schema) for prop_name, prop_schema in v.items()}
+        elif k in ("anyOf", "oneOf", "prefixItems"):
+            if isinstance(v, list):
+                projected[k] = [_project_gemini_schema(i) for i in v]
+        elif k in ("items", "additionalProperties"):
+            if isinstance(v, dict):
+                projected[k] = _project_gemini_schema(v)
+            else:
+                projected[k] = copy.deepcopy(v)
+        else:
+            projected[k] = copy.deepcopy(v)
+
+    return projected
 
 class GoogleGeminiProvider(BenchmarkProvider):
     def __init__(self, mode, model="gemini-3.7-flash"):
@@ -19,10 +54,10 @@ class GoogleGeminiProvider(BenchmarkProvider):
     def _generate_payload(self, request, route_config):
         if "gold" in request["fixture"]:
             raise ValueError("Gold found in request fixture")
-        
+
         sys_prompt = request["system_prompt"]
         fixture_json = json.dumps(request["fixture"])
-        
+
         payload = {
             "systemInstruction": {
                 "parts": [{"text": sys_prompt}]
@@ -33,7 +68,7 @@ class GoogleGeminiProvider(BenchmarkProvider):
             }],
             "generationConfig": {
                 "responseMimeType": "application/json",
-                "responseSchema": request["schema"],
+                "responseSchema": _project_gemini_schema(request["schema"]),
                 "maxOutputTokens": request["max_output_tokens"],
                 "thinkingConfig": {
                     "thinkingLevel": "medium"
@@ -53,7 +88,7 @@ class GoogleGeminiProvider(BenchmarkProvider):
         if self.mode == "DRY_RUN":
             return self._dry_run(request, route_config)
         raise NotImplementedError("Live execution is explicitly disabled in B2A")
-        
+
     def _dry_run(self, request, route_config):
         est_usage = self.estimate_usage(request, route_config)
         return {
@@ -74,8 +109,14 @@ class GoogleGeminiProvider(BenchmarkProvider):
         raise NotImplementedError("Live execution is explicitly disabled in B2A")
 
     def parse_response(self, response_json):
+        if not response_json.get("candidates"):
+            raise ValueError("Provider normalization error: No candidates returned")
+        candidate = response_json["candidates"][0]
+        finish_reason = candidate.get("finishReason")
+        if finish_reason and finish_reason != "STOP":
+            raise ProviderIncompleteResponse(f"Gemini incomplete response. Reason: {finish_reason}")
+
         try:
-            candidate = response_json["candidates"][0]
             text = candidate["content"]["parts"][0]["text"]
             output = json.loads(text)
         except (KeyError, IndexError, TypeError):
@@ -90,7 +131,7 @@ class GoogleGeminiProvider(BenchmarkProvider):
         billed = cand_t + thought_t
         cached = usage.get("cachedContentTokenCount", 0)
         total = usage.get("totalTokenCount", 0)
-        
+
         return {
             "output": output,
             "usage": {

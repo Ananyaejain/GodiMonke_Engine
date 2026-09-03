@@ -452,3 +452,136 @@ class TestBenchmarkHarness(unittest.TestCase):
         os.environ["DEEPSEEK_API_KEY"] = "ds_test"
         h_ds = DeepSeekProvider("DRY_RUN").get_headers()
         self.assertEqual(h_ds["Authorization"], "Bearer ds_test")
+
+    def test_47_gemini_schema_projection(self):
+        from .providers.google import GoogleGeminiProvider
+        from .config import sanitize_fixture
+        import copy
+
+        original_schema = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 100
+                },
+                "age": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 120
+                }
+            },
+            "required": ["name"]
+        }
+
+        req = {
+            "system_prompt": "sys",
+            "fixture": sanitize_fixture(self.f_01),
+            "schema": copy.deepcopy(original_schema),
+            "max_output_tokens": 100
+        }
+
+        p = GoogleGeminiProvider("DRY_RUN")
+        payload = p._generate_payload(req, {})
+        gemini_schema = payload["generationConfig"]["responseSchema"]
+
+        # Verify original intact
+        self.assertIn("maxLength", req["schema"]["properties"]["name"])
+        self.assertIn("$schema", req["schema"])
+
+        # Verify stripped from projected
+        self.assertNotIn("$schema", gemini_schema)
+        self.assertNotIn("maxLength", gemini_schema["properties"]["name"])
+
+        # Verify preserved
+        self.assertEqual(gemini_schema["type"], "object")
+        self.assertEqual(gemini_schema["properties"]["age"]["minimum"], 0)
+        self.assertEqual(gemini_schema["properties"]["age"]["maximum"], 120)
+        self.assertEqual(gemini_schema["required"], ["name"])
+
+    def test_48_gemini_completion(self):
+        from .providers.google import GoogleGeminiProvider
+        from .provider import ProviderIncompleteResponse
+
+        p = GoogleGeminiProvider("DRY_RUN")
+
+        # STOP accepted
+        stop_resp = {
+            "candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": '{"ok": 1}'}]}}]
+        }
+        res = p.parse_response(stop_resp)
+        self.assertEqual(res["output"]["ok"], 1)
+
+        # MAX_TOKENS rejected
+        max_resp = {
+            "candidates": [{"finishReason": "MAX_TOKENS", "content": {"parts": [{"text": '{"ok": 1}'}]}}]
+        }
+        with self.assertRaises(ProviderIncompleteResponse) as cm:
+            p.parse_response(max_resp)
+        self.assertIn("MAX_TOKENS", str(cm.exception))
+
+        # SAFETY rejected
+        safe_resp = {
+            "candidates": [{"finishReason": "SAFETY"}]
+        }
+        with self.assertRaises(ProviderIncompleteResponse) as cm2:
+            p.parse_response(safe_resp)
+        self.assertIn("SAFETY", str(cm2.exception))
+        self.assertNotIn("SECRET", str(cm2.exception))
+
+    def test_49_deepseek_completion(self):
+        from .providers.deepseek import DeepSeekProvider
+        from .provider import ProviderIncompleteResponse
+
+        p = DeepSeekProvider("DRY_RUN")
+
+        # Completed accepted
+        ok_resp = {
+            "status": "completed",
+            "output": [
+                {"type": "message", "content": [{"type": "output_text", "text": '{"ok": 1}'}]}
+            ]
+        }
+        res = p.parse_response(ok_resp)
+        self.assertEqual(res["output"]["ok"], 1)
+
+        # Incomplete rejected
+        inc_resp = {
+            "status": "incomplete",
+            "incomplete_details": {"reason": "max_output_tokens"},
+            "output": []
+        }
+        with self.assertRaises(ProviderIncompleteResponse) as cm:
+            p.parse_response(inc_resp)
+        self.assertIn("max_output_tokens", str(cm.exception))
+        self.assertIn("incomplete", str(cm.exception))
+        self.assertNotIn("SECRET", str(cm.exception))
+
+        # Failed rejected
+        fail_resp = {
+            "status": "failed",
+            "incomplete_details": {"reason": "content_filter"}
+        }
+        with self.assertRaises(ProviderIncompleteResponse) as cm2:
+            p.parse_response(fail_resp)
+        self.assertIn("failed", str(cm2.exception))
+        self.assertIn("content_filter", str(cm2.exception))
+
+    def test_50_deepseek_final_message_and_reasoning(self):
+        from .providers.deepseek import DeepSeekProvider
+
+        p = DeepSeekProvider("DRY_RUN")
+
+        resp = {
+            "status": "completed",
+            "output": [
+                {"type": "reasoning", "content": [{"type": "text", "text": "secret thought"}]},
+                {"type": "message", "content": [{"type": "output_text", "text": '{"wrong": 1}'}]},
+                {"type": "reasoning", "content": [{"type": "text", "text": "more thought"}]},
+                {"type": "message", "content": [{"type": "output_text", "text": '{"ok": 1}'}]}
+            ]
+        }
+        res = p.parse_response(resp)
+        self.assertEqual(res["output"], {"ok": 1})
+        self.assertNotIn("thought", str(res))

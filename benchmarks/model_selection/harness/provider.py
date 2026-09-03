@@ -157,3 +157,6 @@ class FakeProvider(BenchmarkProvider):
             "retry_count": 0,
             "error_status": "OK"
         }
+
+class ProviderIncompleteResponse(Exception):
+    pass
